@@ -1142,7 +1142,7 @@ class TestRailsManagerLatestToolCalls:
         """Any other extraction error blocks with a fixed reason that carries none of the exception's text."""
         mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
         monkeypatch.setattr(
-            "nemoguardrails.guardrails.rails_manager._latest_tool_calls_openai",
+            "nemoguardrails.guardrails.rails_manager.extract_latest_tool_calls",
             MagicMock(side_effect=RuntimeError(_SECRET_VALUE)),
         )
 

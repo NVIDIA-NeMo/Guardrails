@@ -649,7 +649,7 @@ class TestErrors:
     def test_check_that_cannot_extract_the_call_is_check_failed_error(self, client, monkeypatch, agent):
         """A check that fails before any rail decides gets the spec's `checkFailed` error, with no code."""
         monkeypatch.setattr(
-            "nemoguardrails.guardrails.rails_manager._latest_tool_calls_openai",
+            "nemoguardrails.guardrails.rails_manager.extract_latest_tool_calls",
             MagicMock(side_effect=RuntimeError("a bug")),
         )
 

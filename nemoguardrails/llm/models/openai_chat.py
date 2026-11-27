@@ -130,6 +130,9 @@ class OpenAIChatModel:
         params = self._prepare_params(stop, kwargs)
 
         tool_call_acc: Dict[int, Dict[str, Any]] = {}
+        last_model = None
+        last_request_id = None
+        provider_metadata: Dict[str, Any] = {}
 
         gen = self._client.stream_chat_completion(self._model, messages, **params)
         try:
@@ -175,12 +178,26 @@ class OpenAIChatModel:
                 if chunk is None:
                     continue
 
+                last_model = chunk.model or last_model
+                last_request_id = chunk.request_id or last_request_id
+                provider_metadata.update(chunk.provider_metadata or {})
                 chunk.tool_call_deltas = tool_call_deltas or None
-                if chunk.finish_reason in ("tool_calls", "stop") and tool_call_acc:
+                if chunk.finish_reason and tool_call_acc:
                     chunk.delta_tool_calls = self._finalize_tool_calls(tool_call_acc)
                     tool_call_acc.clear()
 
                 yield chunk
+
+            # A provider may omit the finish frame. Validate accumulated arguments
+            # at EOF too, so incomplete calls cannot silently evade tool rails.
+            if tool_call_acc:
+                yield LLMResponseChunk(
+                    model=last_model,
+                    finish_reason="tool_calls",
+                    request_id=last_request_id,
+                    delta_tool_calls=self._finalize_tool_calls(tool_call_acc),
+                    provider_metadata=provider_metadata or None,
+                )
         except LLMClientError as exc:
             raise self._enrich(exc)
         finally:

@@ -335,9 +335,6 @@ class TestStream:
 
         final = results[-1]
         assert final.finish_reason == finish_reason
-        if finish_reason in ("length", "content_filter"):
-            assert not any(chunk.delta_tool_calls for chunk in results)
-            return
         assert sum(bool(chunk.delta_tool_calls) for chunk in results) == 1
         assert len(final.delta_tool_calls) == 1
         assert final.delta_tool_calls[0].function.name == "get_weather"
@@ -411,7 +408,7 @@ class TestStream:
 class TestToolArgumentValidation:
     @pytest.mark.asyncio
     @pytest.mark.parametrize("stream", [False, True])
-    @pytest.mark.parametrize("finish_reason", ["tool_calls", "stop"])
+    @pytest.mark.parametrize("finish_reason", ["tool_calls", "stop", "length", "content_filter"])
     @pytest.mark.parametrize(
         "arguments,expected",
         [
@@ -494,6 +491,60 @@ class TestToolArgumentValidation:
             assert actual_finish_reason == finish_reason
         if stream:
             assert closed
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("arguments,valid", [('{"city":"Paris"}', True), ('{"city":', False)])
+    async def test_tool_calls_at_eof_are_finalized_or_rejected(self, arguments, valid):
+        client = _mock_client()
+        closed = False
+
+        async def stream(*args, **kwargs):
+            nonlocal closed
+            try:
+                yield HTTPResponse(
+                    body={
+                        "id": "request-tools",
+                        "model": "test-model",
+                        "choices": [
+                            {
+                                "delta": {
+                                    "tool_calls": [
+                                        {
+                                            "index": 0,
+                                            "id": "call-weather",
+                                            "type": "function",
+                                            "function": {"name": "get_weather", "arguments": arguments},
+                                        }
+                                    ]
+                                },
+                                "finish_reason": None,
+                            }
+                        ],
+                        "nvext": {"test": True},
+                    },
+                    headers={"x-request-id": "request-tools"},
+                )
+            finally:
+                closed = True
+
+        client.stream_chat_completion = stream
+        model = _model(client)
+        if not valid:
+            with pytest.raises(LLMResponseValidationError, match="valid JSON object"):
+                _ = [chunk async for chunk in model.stream_async("Weather?")]
+        else:
+            chunks = [chunk async for chunk in model.stream_async("Weather?")]
+            assert sum(bool(chunk.delta_tool_calls) for chunk in chunks) == 1
+            terminal = chunks[-1]
+            assert terminal.finish_reason == "tool_calls"
+            assert terminal.model == "test-model"
+            assert terminal.request_id == "request-tools"
+            assert terminal.delta_tool_calls == [
+                ToolCall(id="call-weather", function=ToolCallFunction(name="get_weather", arguments={"city": "Paris"}))
+            ]
+            assert terminal.provider_metadata["nvext"] == {"test": True}
+            assert terminal.provider_metadata["response_headers"] == {"x-request-id": "request-tools"}
+        assert closed
 
 
 class TestParams:

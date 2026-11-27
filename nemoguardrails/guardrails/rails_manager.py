@@ -37,12 +37,8 @@ from nemoguardrails.guardrails.guardrails_types import (
     last_user_content,
     rewrite_user_message,
 )
-from nemoguardrails.guardrails.model_engine import (
-    _extract_tool_exchanges_openai,
-    _latest_tool_calls_openai,
-    _parse_tools_openai,
-)
 from nemoguardrails.guardrails.telemetry import mark_rail_stop, rail_span, set_rail_content
+from nemoguardrails.guardrails.tool_parsing import extract_latest_tool_calls, extract_tool_exchanges, parse_tools
 from nemoguardrails.guardrails.tool_rail_action import ToolRailAction, reported_violations, violations_outcome
 from nemoguardrails.guardrails.tool_schema import (
     ArgumentsViolation,
@@ -637,8 +633,7 @@ class RailsManager:
         """The tools *llm_params* offers, in *model_type*'s wire format, or as Chat Completions when it's None."""
         if model_type is not None:
             return self.engine_registry.parse_tools(model_type, llm_params)
-        tools = (llm_params or {}).get("tools")
-        return Toolset(tools=_parse_tools_openai(tools)) if tools else Toolset()
+        return parse_tools(llm_params)
 
     async def are_latest_tool_calls_safe(
         self,
@@ -655,7 +650,7 @@ class RailsManager:
         if not self._any_tool_call_rail_enabled(enabled):
             return RailResult.allow()
         try:
-            extracted = _latest_tool_calls_openai(messages)
+            extracted = extract_latest_tool_calls(messages)
         except ToolCallExtractionError as e:
             log.warning("[%s] tool call extraction failed; blocking: %s", get_request_id(), e)
             return _blocked_before_rails(_extraction_violation(e))
@@ -735,7 +730,7 @@ class RailsManager:
             return RailResult.allow()
         try:
             exchanges = (
-                _extract_tool_exchanges_openai(messages)
+                extract_tool_exchanges(messages)
                 if model_type is None
                 else self.engine_registry.extract_tool_exchanges(model_type, messages)
             )

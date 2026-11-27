@@ -49,24 +49,26 @@ from nemoguardrails.guardrails._http import (
     safe_read_body,
 )
 from nemoguardrails.guardrails.base_engine import BaseEngine
-from nemoguardrails.guardrails.guardrails_types import LLMMessages, get_request_id, quoted_identity, truncate
+from nemoguardrails.guardrails.guardrails_types import LLMMessages, get_request_id, truncate
 from nemoguardrails.guardrails.telemetry import (
     llm_call_span,
     set_llm_call_content,
     set_llm_request_attributes,
     set_llm_response_attributes,
 )
+from nemoguardrails.guardrails.tool_parsing import (
+    extract_latest_tool_calls,
+    extract_tool_exchanges,
+    parse_tools,
+)
 from nemoguardrails.guardrails.tool_schema import (
     LatestToolCall,
-    Tool,
-    ToolCallExtractionError,
     ToolExchange,
     ToolResult,
     Toolset,
 )
 from nemoguardrails.llm.clients._errors import ErrorContext, raise_for_sse_error, raise_for_status
 from nemoguardrails.rails.llm.config import Model
-from nemoguardrails.rails.llm.options import ToolViolationType
 from nemoguardrails.tracing.constants import (
     llm_operation_duration,
     record_time_per_output_chunk,
@@ -398,264 +400,11 @@ def _finalize_tool_calls(tool_calls: dict[int, dict]) -> list[ToolCall]:
     return result
 
 
-def _parse_tools_openai(tools: list) -> list[Tool]:
-    """Parse OpenAI Chat Completions tool definitions into ``Tool`` objects.
-
-    Each entry has the nested shape ``{"type": "function", "function": {"name",
-    "description", "parameters", "strict"}}``; ``function.parameters`` (the JSON
-    Schema) maps to ``Tool.arguments_schema``. Entries that are not a dict, lack a
-    ``function`` block, or whose function has no non-empty ``name`` are skipped.
-    """
-    parsed: list[Tool] = []
-    for entry in tools:
-        if not isinstance(entry, dict):
-            continue
-        function = entry.get("function")
-        if not isinstance(function, dict):
-            continue
-        name = function.get("name")
-        if not isinstance(name, str) or not name:
-            continue
-        parsed.append(
-            Tool(
-                name=name,
-                type=entry.get("type", "function"),
-                description=function.get("description"),
-                arguments_schema=function.get("parameters"),
-                strict=function.get("strict"),
-            )
-        )
-    return parsed
-
-
-def _parse_tools_nim(tools: list) -> list[Tool]:
-    """Parse NIM tool definitions. NIM uses the OpenAI Chat Completions tool shape."""
-    return _parse_tools_openai(tools)
-
-
-_TOOL_PARSERS = {
-    "openai": _parse_tools_openai,
-    "nim": _parse_tools_nim,
-}
-
-
-def _tool_result_from_message(message: dict, message_index: int | None = None) -> ToolResult:
-    """Normalize one OpenAI Chat Completions ``role:"tool"`` message into a ``ToolResult``.
-
-    This shape has no error flag, so ``is_error`` is always ``False``.
-    """
-    return ToolResult(
-        call_id=message.get("tool_call_id"),
-        name=message.get("name"),
-        content=message.get("content"),
-        message_index=message_index,
-    )
-
-
-def _extract_tool_results_openai(messages: LLMMessages) -> list[ToolResult]:
-    """Extract OpenAI Chat Completions tool results into ``ToolResult`` objects.
-
-    Chat Completions carries each tool result as a top-level ``{"role": "tool",
-    "tool_call_id", "content"}`` message (optionally ``name``).
-    """
-    return [
-        _tool_result_from_message(message)
-        for message in messages
-        if isinstance(message, dict) and message.get("role") == "tool"
-    ]
-
-
-def _extract_tool_results_nim(messages: LLMMessages) -> list[ToolResult]:
-    """Extract NIM tool results. NIM uses the OpenAI Chat Completions shape."""
-    return _extract_tool_results_openai(messages)
-
-
-_RESULT_EXTRACTORS = {
-    "openai": _extract_tool_results_openai,
-    "nim": _extract_tool_results_nim,
-}
-
-
-def _tool_calls_from_message(message: dict) -> list[ToolCall]:
-    """Extract the tool calls from one assistant message into ``ToolCall`` objects.
-    Malformed tool calls fall back to just id, type, function"""
-    try:
-        return ChatMessage.from_dict(message).tool_calls or []
-    except ValueError:
-        return [
-            ToolCall(
-                id=raw.get("id", ""),
-                type=raw.get("type", "function"),
-                function=ToolCallFunction(name=(raw.get("function") or {}).get("name", ""), arguments={}),
-            )
-            for raw in message.get("tool_calls") or []
-            if isinstance(raw, dict)
-        ]
-
-
-def _extract_tool_exchanges_openai(messages: LLMMessages) -> list[ToolExchange]:
-    """Group an OpenAI Chat Completions conversation into per-turn ``ToolExchange``es."""
-    exchanges: list[ToolExchange] = []
-    # The exchange currently accepting tool results: the most recent assistant tool-call
-    # turn, or an orphan opened by a leading/stray tool result. Any other message resets
-    # it to None so the next tool result starts a fresh exchange instead of attaching to
-    # a closed turn.
-    open_exchange: ToolExchange | None = None
-    # Every message counts toward the index, so a violation points into the caller's own list.
-    for message_index, message in enumerate(messages):
-        if not isinstance(message, dict):
-            continue
-        role = message.get("role")
-        if role == "tool":
-            if open_exchange is None:
-                open_exchange = ToolExchange(calls=[], results=[])
-                exchanges.append(open_exchange)
-            open_exchange.results.append(_tool_result_from_message(message, message_index))
-        elif role == "assistant" and message.get("tool_calls"):
-            open_exchange = ToolExchange(calls=_tool_calls_from_message(message), results=[])
-            exchanges.append(open_exchange)
-        else:
-            open_exchange = None
-    return exchanges
-
-
-def _extract_tool_exchanges_nim(messages: LLMMessages) -> list[ToolExchange]:
-    """Extract NIM tool exchanges. NIM uses the OpenAI Chat Completions shape."""
-    return _extract_tool_exchanges_openai(messages)
-
-
 # How much of a failed response to read for error classification. Large enough that any
 # realistic provider error body parses as JSON and yields its message/code/param, bounded
 # because an unparseable body (an HTML proxy error page) becomes the client-facing message
 # verbatim, and must not be forwarded whole.
 _ERROR_BODY_MAX_CHARS = 8192
-
-
-_TOOL_EXCHANGE_EXTRACTORS = {
-    "openai": _extract_tool_exchanges_openai,
-    "nim": _extract_tool_exchanges_nim,
-}
-
-
-def _latest_assistant_message(messages: LLMMessages) -> dict | None:
-    """The last assistant message in *messages*, or None when there is none."""
-    for message in reversed(messages):
-        if isinstance(message, dict) and message.get("role") == "assistant":
-            return message
-    return None
-
-
-def _string_or_none(value: object) -> str | None:
-    """*value* when it is a string, else None, so an error's identity fields hold only strings."""
-    return value if isinstance(value, str) else None
-
-
-def _describe_tool_call(index: int, tool_call_id: str | None) -> str:
-    """Name a tool call in an error message by its id, else by its position."""
-    if tool_call_id:
-        return f"tool call '{quoted_identity(tool_call_id)}'"
-    return f"tool call at index {index}"
-
-
-def _legacy_function_call_error(function_call: object) -> ToolCallExtractionError:
-    """The error for a legacy ``function_call``, which no tool rail validates."""
-    name = function_call.get("name") if isinstance(function_call, dict) else None
-    return ToolCallExtractionError(
-        "legacy function_call is not validated by tool rails",
-        violation_type=ToolViolationType.LEGACY_FUNCTION_CALL,
-        tool_name=_string_or_none(name),
-    )
-
-
-def _malformed_tool_call_field(entry: dict, function: dict) -> str | None:
-    """The first identity field of a wire tool call that is not a string, or None when all of them are."""
-    tool_call_id = entry.get("id")
-    if tool_call_id is not None and not isinstance(tool_call_id, str):
-        return "id"
-    if not isinstance(entry.get("type", "function"), str):
-        return "type"
-    name = function.get("name")
-    if not isinstance(name, str) or not name:
-        return "function name"
-    return None
-
-
-def _parse_latest_tool_call(entry: object, index: int) -> ToolCall:
-    """Strictly parse one wire tool call, raising a ``ToolCallExtractionError`` that omits its arguments."""
-    if not isinstance(entry, dict):
-        raise ToolCallExtractionError(
-            f"tool call at index {index} is not an object",
-            violation_type=ToolViolationType.MALFORMED_TOOL_CALL,
-            index=index,
-        )
-    tool_call_id = _string_or_none(entry.get("id"))
-    function = entry.get("function")
-    # A call without a function object is not the Chat Completions shape; ChatMessage.from_dict would
-    # read it as the legacy flat shape, which ignores an `arguments` key and validates `{}` instead.
-    if not isinstance(function, dict):
-        raise ToolCallExtractionError(
-            f"{_describe_tool_call(index, tool_call_id)} does not carry a function object",
-            violation_type=ToolViolationType.MALFORMED_TOOL_CALL,
-            index=index,
-            tool_call_id=tool_call_id,
-        )
-    malformed_field = _malformed_tool_call_field(entry, function)
-    if malformed_field is not None:
-        # ChatMessage.from_dict does not type these, and a non-string name breaks the per-tool rail lookup.
-        raise ToolCallExtractionError(
-            f"{_describe_tool_call(index, tool_call_id)} has a malformed {malformed_field}",
-            violation_type=ToolViolationType.MALFORMED_TOOL_CALL,
-            index=index,
-            tool_call_id=tool_call_id,
-            tool_name=_string_or_none(function.get("name")) or None,
-        )
-    # A completed turn's "" arguments are not JSON, so from_dict rejects them, as non-streaming generation does.
-    try:
-        message = ChatMessage.from_dict({"role": "assistant", "tool_calls": [entry]})
-    except ValueError:
-        # from_dict's message quotes the raw arguments, so it is dropped rather than chained.
-        raise ToolCallExtractionError(
-            f"{_describe_tool_call(index, tool_call_id)} has malformed arguments",
-            violation_type=ToolViolationType.MALFORMED_ARGUMENTS,
-            index=index,
-            tool_call_id=tool_call_id,
-            tool_name=_string_or_none(function.get("name")),
-        ) from None
-    return cast(list[ToolCall], message.tool_calls)[0]
-
-
-def _parsed_or_error(entry: object, index: int) -> LatestToolCall:
-    """The parsed call, or the error that keeps it from being validated, so one bad call doesn't stop the rest."""
-    try:
-        return _parse_latest_tool_call(entry, index)
-    except ToolCallExtractionError as error:
-        return error
-
-
-def _latest_tool_calls_openai(messages: LLMMessages) -> list[LatestToolCall]:
-    """Strictly parse the last assistant message's tool calls; an unparsable call's error takes its place."""
-    # Only that message is parsed: ChatMessage rejects roles such as the server's "context".
-    message = _latest_assistant_message(messages)
-    if message is None:
-        return []
-    # Checked first: a function_call beside tool_calls would otherwise go unvalidated.
-    if message.get("function_call"):
-        raise _legacy_function_call_error(message["function_call"])
-    raw_calls = message.get("tool_calls")
-    if not raw_calls:
-        return []
-    return [_parsed_or_error(entry, index) for index, entry in enumerate(raw_calls)]
-
-
-def _latest_tool_calls_nim(messages: LLMMessages) -> list[LatestToolCall]:
-    """Parse NIM's latest tool calls. NIM uses the OpenAI Chat Completions shape."""
-    return _latest_tool_calls_openai(messages)
-
-
-_LATEST_TOOL_CALL_EXTRACTORS = {
-    "openai": _latest_tool_calls_openai,
-    "nim": _latest_tool_calls_nim,
-}
 
 
 class ModelEngineError(Exception):
@@ -1431,29 +1180,24 @@ class ModelEngine(BaseEngine):
 
         Reads the opaque ``tools`` block forwarded via
         ``GenerationOptions.llm_params`` and normalizes it into the internal
-        ``Toolset`` the tool rails validate against, keyed on the model's engine
-        (``_TOOL_PARSERS``). OpenAI and NIM share the Chat Completions shape; an
-        engine with no registered parser falls back to it. Returns an empty
-        ``Toolset`` when no tools are declared.
+        ``Toolset`` the tool rails validate against using the shared Chat
+        Completions parser. Returns an empty ``Toolset`` when no tools are declared.
         """
-        tools = (llm_params or {}).get("tools")
-        if not tools:
-            return Toolset()
-        parser = _TOOL_PARSERS.get(self.model_config.engine, _parse_tools_openai)
-        return Toolset(tools=parser(tools))
+        return parse_tools(llm_params)
 
     def extract_tool_results(self, messages: LLMMessages) -> list[ToolResult]:
         """Extract incoming tool results from ``messages`` into ``ToolResult`` objects.
 
         Pulls the provider's tool-result messages out of the conversation and
         normalizes them into the internal ``ToolResult`` shape the ToolResultRail
-        consumes, keyed on the model's engine (``_RESULT_EXTRACTORS``). OpenAI and
-        NIM share the Chat Completions shape (``role:"tool"`` messages); an engine
-        with no registered extractor falls back to it. Returns an empty list when
-        there are no tool results.
+        consumes. Tool results use the Chat Completions shape (``role:"tool"``
+        messages). Returns an empty list when there are no tool results.
         """
-        extractor = _RESULT_EXTRACTORS.get(self.model_config.engine, _extract_tool_results_openai)
-        return extractor(messages)
+        return [
+            ToolResult(call_id=m.get("tool_call_id"), name=m.get("name"), content=m.get("content"))
+            for m in messages
+            if isinstance(m, dict) and m.get("role") == "tool"
+        ]
 
     def extract_tool_exchanges(self, messages: LLMMessages) -> list[ToolExchange]:
         """Group ``messages`` into per-turn ``(tool_calls, tool_results)`` exchanges.
@@ -1461,14 +1205,11 @@ class ModelEngine(BaseEngine):
         Each exchange pairs one assistant turn's tool calls with the tool results that
         answer it, so ``RailsManager.are_tool_results_safe`` can validate ``call_id``
         linkage turn-locally rather than across the whole flattened history (the latter
-        falsely flags ids reused across turns, which the OpenAI spec permits). Keyed on
-        the model's engine (``_TOOL_EXCHANGE_EXTRACTORS``); OpenAI and NIM share the Chat
-        Completions shape and an engine with no registered extractor falls back to it.
+        falsely flags ids reused across turns, which the OpenAI spec permits).
+        Delegates to the shared Chat Completions parser.
         """
-        extractor = _TOOL_EXCHANGE_EXTRACTORS.get(self.model_config.engine, _extract_tool_exchanges_openai)
-        return extractor(messages)
+        return extract_tool_exchanges(messages)
 
     def extract_latest_tool_calls(self, messages: LLMMessages) -> list[LatestToolCall]:
         """Strictly parse the last assistant message's tool calls in the wire shape of the model's engine."""
-        extractor = _LATEST_TOOL_CALL_EXTRACTORS.get(self.model_config.engine, _latest_tool_calls_openai)
-        return extractor(messages)
+        return extract_latest_tool_calls(messages)

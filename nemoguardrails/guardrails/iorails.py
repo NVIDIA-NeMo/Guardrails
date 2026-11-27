@@ -63,7 +63,6 @@ from nemoguardrails.guardrails.guardrails_types import (
     serialize_prompt,
     truncate,
 )
-from nemoguardrails.guardrails.model_engine import _parse_tools_openai
 from nemoguardrails.guardrails.rails_manager import RailsManager
 from nemoguardrails.guardrails.telemetry import (
     are_metrics_enabled,
@@ -82,6 +81,7 @@ from nemoguardrails.guardrails.telemetry import (
     stream_active_metric,
     traced_request,
 )
+from nemoguardrails.guardrails.tool_parsing import parse_tool_definitions
 from nemoguardrails.llm.call import _extract_and_remove_think_tags
 from nemoguardrails.llm.clients._errors import (
     STREAM_ERROR_TYPES,
@@ -572,7 +572,7 @@ def _reject_unreadable_tools(tools: Optional[list[dict]]) -> None:
     if not isinstance(tools, list):
         raise InvalidCheckRequestError("tools must be a list of Chat Completions function tools")
     # Entries are reported by position only: their content is the caller's, and can be large.
-    unreadable = [str(index) for index, entry in enumerate(tools) if not _parse_tools_openai([entry])]
+    unreadable = [str(index) for index, entry in enumerate(tools) if not parse_tool_definitions([entry])]
     if not unreadable:
         return
     if len(unreadable) == 1:
