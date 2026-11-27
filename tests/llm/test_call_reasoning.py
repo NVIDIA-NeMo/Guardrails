@@ -229,6 +229,7 @@ class TestReasoningTraceIntegration:
         result = await llm_call(fake_llm, "What is the answer?")
 
         assert result.content == "The answer is 42"
+        assert result.reasoning == test_reasoning
         assert "<think>" not in result.content
         stored_trace = reasoning_trace_var.get()
         assert stored_trace == test_reasoning

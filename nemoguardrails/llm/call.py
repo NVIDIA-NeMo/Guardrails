@@ -70,7 +70,7 @@ def _ensure_chat_messages(prompt: Union[str, list]) -> Union[str, List[ChatMessa
 
 
 # TODO: we must drop prompt in the codebase completely and use messages everywhere.
-@track_llm_call
+@track_llm_call(isolated=True)
 async def llm_call(
     llm: Optional[Any],
     prompt: Union[str, List[dict]],
@@ -432,6 +432,8 @@ def _store_reasoning_traces(response: LLMResponse) -> None:
 
     if not reasoning_content:
         reasoning_content = _extract_and_remove_think_tags(response)
+        if reasoning_content is not None:
+            response.reasoning = reasoning_content
 
     reasoning_trace_var.set(reasoning_content)
 

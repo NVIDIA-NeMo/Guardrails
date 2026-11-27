@@ -309,3 +309,54 @@ async def test_compliance_checker_run_updates_changed_outputs(tmp_path):
         call(checker.eval_data, str(tmp_path)),
         call(checker.eval_data, str(tmp_path)),
     ]
+
+
+@pytest.mark.asyncio
+async def test_compliance_log_reads_the_completed_isolated_model_call():
+    from nemoguardrails.context import (
+        explain_info_var,
+        llm_call_info_var,
+        llm_response_metadata_var,
+        llm_stats_var,
+        reasoning_trace_var,
+        tool_calls_var,
+    )
+    from nemoguardrails.logging.processing_log import processing_log_var
+    from nemoguardrails.testing.fake_model import FakeLLMModel
+    from nemoguardrails.types import LLMResponse, UsageInfo
+
+    variables = (
+        explain_info_var,
+        llm_call_info_var,
+        llm_response_metadata_var,
+        llm_stats_var,
+        reasoning_trace_var,
+        tool_calls_var,
+        processing_log_var,
+    )
+    tokens = [(variable, variable.set(None)) for variable in variables]
+    try:
+        checker = _checker()
+        checker.llm = FakeLLMModel(
+            llm_responses=[
+                LLMResponse(
+                    content="Reason: good\nCompliance: Yes",
+                    request_id="judge-request",
+                    usage=UsageInfo(input_tokens=7, output_tokens=3, total_tokens=10),
+                )
+            ]
+        )
+        output = InteractionOutput(id="set/0", input="hello", compliance={"policy": None})
+        log = InteractionLog(id="set/0", events=[])
+
+        assert await checker.check_interaction_compliance(output, log, _interaction_set(), 1)
+
+        info = log.compliance_checks[0].llm_calls[0]
+        assert info.id is not None
+        assert info.request_id == "judge-request"
+        assert info.task == "llm_judge_check_single_policy_compliance"
+        assert info.completion == "Reason: good\nCompliance: Yes"
+        assert (info.prompt_tokens, info.completion_tokens, info.total_tokens) == (7, 3, 10)
+    finally:
+        for variable, token in reversed(tokens):
+            variable.reset(token)
