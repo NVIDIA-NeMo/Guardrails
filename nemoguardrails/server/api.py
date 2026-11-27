@@ -50,7 +50,6 @@ from nemoguardrails.exceptions import (
     ToolConversationTooLongError,
 )
 from nemoguardrails.guardrails.iorails import IORails
-from nemoguardrails.guardrails.model_engine import ModelEngineError
 from nemoguardrails.http.errors import HTTPClientError
 from nemoguardrails.llm.call import _prepend_think_tags
 from nemoguardrails.llm.clients._errors import (
@@ -234,7 +233,6 @@ _EXCEPTION_HANDLERS = (
     (asyncio.QueueFull, queue_full_error_handler),
     (LLMResponseValidationError, llm_call_exception_handler),
     (LLMCallException, llm_call_exception_handler),
-    (ModelEngineError, llm_call_exception_handler),
     (HTTPClientError, llm_call_exception_handler),
     (ModelInitializationError, model_initialization_error_handler),
     (StreamingNotSupportedError, bad_request_error_handler),

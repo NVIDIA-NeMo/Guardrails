@@ -83,8 +83,8 @@ Prefer mechanisms in this order:
    response that must flow through the full pipeline and cannot be reproduced by 1 or 2.
 
 Recorded provider HTTP errors propagate rather than becoming policy refusals.
-Calls through `llm_call` raise `LLMCallException` on LLMRails and IORails;
-IORails direct model-engine calls can raise `ModelEngineError`. IORails converts
+Model calls through `llm_call` raise `LLMCallException` on LLMRails and IORails.
+IORails converts
 ordinary rail-action errors without an upstream HTTP status to a blocking
 failed outcome; those synthetic failures belong in unit tests. See
 `rails/library/test_iorails_parity.py` for the recorded

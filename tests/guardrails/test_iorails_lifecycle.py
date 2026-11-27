@@ -29,15 +29,12 @@ from aiohttp.test_utils import TestServer
 from nemoguardrails import Guardrails, RailsConfig
 from nemoguardrails.guardrails import _lifecycle
 from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
-from nemoguardrails.guardrails.base_engine import BaseEngine
-from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.http.transport import HttpxHTTPClient
 
 
-class ProbeEngine(BaseEngine):
+class ProbeClient:
     def __init__(self):
-        super().__init__()
         self.start_entered = asyncio.Event()
         self.stop_entered = asyncio.Event()
         self.start_gate = asyncio.Event()
@@ -93,7 +90,7 @@ def rails(monkeypatch):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("cancellation", ["task", "scope"])
 async def test_cancelled_core_startup_rolls_back_partial_engine(rails, cancellation):
-    first, second = ProbeEngine(), ProbeEngine()
+    first, second = ProbeClient(), ProbeClient()
     second.start_gate.clear()
     _install_resources(rails, {"first": first, "second": second})
     if cancellation == "task":
@@ -116,7 +113,7 @@ async def test_cancelled_core_startup_rolls_back_partial_engine(rails, cancellat
 @pytest.mark.asyncio
 @pytest.mark.parametrize("failure", ["timeout", "exception"])
 async def test_real_core_cleanup_retries_only_unfinished_engines(rails, failure):
-    first, second = ProbeEngine(), ProbeEngine()
+    first, second = ProbeClient(), ProbeClient()
     _install_resources(rails, {"first": first, "second": second})
     await rails.startup()
     if failure == "timeout":
@@ -144,7 +141,7 @@ async def test_real_core_cleanup_retries_only_unfinished_engines(rails, failure)
 
 @pytest.mark.asyncio
 async def test_failed_startup_retains_failed_rollback_for_facade_shutdown(rails):
-    first, second = ProbeEngine(), ProbeEngine()
+    first, second = ProbeClient(), ProbeClient()
     first.stop_error = RuntimeError("rollback failed")
     startup_error = ValueError("startup failed")
     second.start = AsyncMock(side_effect=startup_error)
@@ -158,57 +155,6 @@ async def test_failed_startup_retains_failed_rollback_for_facade_shutdown(rails)
     await rails.shutdown()
     assert first.stops == previous_stops + 1
     assert not first.owned
-
-
-@pytest.mark.asyncio
-async def test_registry_restart_cannot_overwrite_failed_cleanup():
-    registry = EngineRegistry([])
-    engine = ProbeEngine()
-    registry._engines = {"one": engine}
-    await registry.start()
-    engine.stop_error = RuntimeError("close failed")
-    with pytest.raises(RuntimeError):
-        await registry.stop()
-    with pytest.raises(RuntimeError):
-        await registry.start()
-    assert engine.starts == 1
-    engine.stop_error = None
-    await registry.stop()
-    await registry.start()
-    assert engine.starts == 2
-    await registry.stop()
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("failure", ["timeout", "exception"])
-async def test_base_engine_retains_client_until_close_completes(monkeypatch, failure):
-    engine = BaseEngine()
-    await engine.start()
-    client = engine._client
-    actual_close = client.close
-    gate = asyncio.Event()
-
-    async def interrupted_close():
-        if failure == "exception":
-            raise RuntimeError("close failed")
-        await gate.wait()
-
-    closer = AsyncMock(side_effect=interrupted_close)
-    monkeypatch.setattr(client, "close", closer)
-    try:
-        if failure == "exception":
-            with pytest.raises(RuntimeError):
-                await engine.stop()
-        else:
-            with anyio.move_on_after(0.02) as scope:
-                await engine.stop()
-            assert scope.cancelled_caught
-        closer.side_effect = actual_close
-        await engine.stop()
-        assert closer.await_count == 2
-        assert engine._client is None
-    finally:
-        await actual_close()
 
 
 @pytest.mark.asyncio
@@ -242,7 +188,7 @@ async def test_interrupted_queue_drain_can_be_retried():
 
 @pytest.mark.asyncio
 async def test_concurrent_starts_share_one_lifecycle(rails):
-    engine = ProbeEngine()
+    engine = ProbeClient()
     engine.start_gate.clear()
     _install_resources(rails, {"one": engine})
     first = asyncio.create_task(rails.startup())
@@ -260,7 +206,7 @@ async def test_concurrent_starts_share_one_lifecycle(rails):
 @pytest.mark.asyncio
 async def test_rollback_timeout_preserves_startup_error_and_cleanup_ownership(rails, monkeypatch):
     monkeypatch.setattr(_lifecycle, "_ROLLBACK_TIMEOUT_SECONDS", 0.01)
-    first, second = ProbeEngine(), ProbeEngine()
+    first, second = ProbeClient(), ProbeClient()
     first.stop_gate.clear()
     original = ValueError("startup failure")
     second.start = AsyncMock(side_effect=original)
@@ -277,7 +223,7 @@ async def test_rollback_timeout_preserves_startup_error_and_cleanup_ownership(ra
 
 @pytest.mark.asyncio
 async def test_cancellation_survives_a_secondary_cleanup_error(rails):
-    first, second = ProbeEngine(), ProbeEngine()
+    first, second = ProbeClient(), ProbeClient()
     first.stop_gate.clear()
     second.stop_error = ValueError("secondary cleanup failure")
     _install_resources(rails, {"first": first, "second": second})
@@ -345,7 +291,7 @@ async def test_shutdown_logs_component_failures_without_changing_error_precedenc
 
 @pytest.mark.asyncio
 async def test_failed_startup_can_retry_without_closing_unused_rail_http_client(rails):
-    engine = ProbeEngine()
+    engine = ProbeClient()
     actual_start = engine.start
     engine.start = AsyncMock(side_effect=ValueError("startup failed"))
     _install_resources(rails, {"one": engine})
@@ -358,28 +304,8 @@ async def test_failed_startup_can_retry_without_closing_unused_rail_http_client(
 
 
 @pytest.mark.asyncio
-async def test_base_engine_restart_does_not_replace_client_with_pending_cleanup(monkeypatch):
-    engine = BaseEngine()
-    await engine.start()
-    client = engine._client
-    actual_close = client.close
-    closer = AsyncMock(side_effect=RuntimeError("close failed"))
-    monkeypatch.setattr(client, "close", closer)
-    try:
-        with pytest.raises(RuntimeError):
-            await engine.stop()
-        with pytest.raises(RuntimeError):
-            await engine.start()
-        assert engine._client is client
-        closer.side_effect = actual_close
-        await engine.stop()
-    finally:
-        await actual_close()
-
-
-@pytest.mark.asyncio
 async def test_shutdown_waits_for_startup_and_clears_facade_readiness(rails):
-    engine = ProbeEngine()
+    engine = ProbeClient()
     engine.start_gate.clear()
     _install_resources(rails, {"one": engine})
     startup = asyncio.create_task(rails.startup())
@@ -397,7 +323,7 @@ async def test_shutdown_waits_for_startup_and_clears_facade_readiness(rails):
 
 @pytest.mark.asyncio
 async def test_repeated_task_cancellation_preserves_original_and_cleanup_ownership(rails):
-    first, second = ProbeEngine(), ProbeEngine()
+    first, second = ProbeClient(), ProbeClient()
     first.stop_gate.clear()
     second.start_gate.clear()
     _install_resources(rails, {"first": first, "second": second})
@@ -421,7 +347,7 @@ async def test_repeated_task_cancellation_preserves_original_and_cleanup_ownersh
 async def test_facade_restarts_after_its_engine_is_stopped(rails):
     """Use engine readiness when deciding whether facade startup is needed."""
 
-    engine = ProbeEngine()
+    engine = ProbeClient()
     _install_resources(rails, {"one": engine})
     await rails.startup()
     try:

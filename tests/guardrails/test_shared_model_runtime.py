@@ -46,16 +46,6 @@ def selected_provider(monkeypatch):
     return factory, created
 
 
-@pytest.fixture(autouse=True)
-def prohibit_legacy_model_construction(monkeypatch):
-    from nemoguardrails.guardrails.model_engine import ModelEngine
-
-    def fail(*args, **kwargs):
-        pytest.fail("The public IORails path constructed a legacy ModelEngine")
-
-    monkeypatch.setattr(ModelEngine, "__init__", fail)
-
-
 @pytest.mark.asyncio
 async def test_injected_main_without_configured_main_supports_public_generation_and_restart():
     model = FakeLLMModel(responses=["Hello", "Again"])
@@ -330,6 +320,49 @@ def test_testchat_can_force_public_iorails_with_injected_completions(monkeypatch
     chat.bot("Again")
     assert chat.app.use_iorails_engine
     assert chat.app.llm is chat.llm
+
+
+@pytest.mark.parametrize(
+    "parameters, expected",
+    [
+        ({}, (30, 5, 2)),
+        ({"timeout": 11, "timeout_connect": 3, "max_attempts": 4}, (11, 3, 3)),
+        ({"timeout": 11, "connect_timeout": 3, "max_retries": 3}, (11, 3, 3)),
+        ({"timeout_connect": 3, "connect_timeout": 3, "max_attempts": 4, "max_retries": 3}, (30, 3, 3)),
+    ],
+)
+def test_runtime_transport_defaults_and_aliases(parameters, expected):
+    config = RailsConfig.from_content(
+        config={"models": [{"type": "main", "engine": "openai", "model": "test-model", "parameters": parameters}]}
+    )
+    runtime = ModelRuntime(config.models)
+    client = runtime.main_model._client
+    assert (client._timeout.read, client._timeout.connect, client._max_retries) == expected
+    assert client._http_client is None
+    assert config.models[0].parameters == parameters
+
+
+@pytest.mark.parametrize(
+    "parameters, message",
+    [
+        ({"timeout_connect": 2, "connect_timeout": 3}, "Specify only one"),
+        ({"max_attempts": 3, "max_retries": 3}, "different retry counts"),
+        ({"max_attempts": 0}, "at least 1"),
+    ],
+)
+def test_conflicting_transport_aliases_fail_before_construction(selected_provider, parameters, message):
+    factory, _ = selected_provider
+    config = RailsConfig.from_content(
+        config={
+            "models": [
+                {"type": "main", "engine": "custom", "model": "main"},
+                {"type": "content_safety", "engine": "openai", "model": "safety", "parameters": parameters},
+            ]
+        }
+    )
+    with pytest.raises(ValueError, match=message):
+        ModelRuntime(config.models)
+    factory.assert_not_called()
 
 
 @pytest.mark.parametrize("provider", ["custom", "openai"])

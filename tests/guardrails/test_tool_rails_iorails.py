@@ -16,9 +16,8 @@
 """Integration tests for the tool rails wired into IORails.
 
 These drive the full top-level request path (``generate_async`` / ``stream_async``)
-with only the aiohttp transport mocked, so the real ModelEngine parsing
-(``parse_tools`` / ``extract_tool_results`` / ``extract_tool_calls``) and the
-RailsManager tool rails run end to end. They are the IORails-level companions to
+with only the httpx transport mocked, so tool definitions, conversation exchanges,
+and RailsManager checks run end to end. They are the IORails-level companions to
 ``test_tool_rails_e2e.py`` (which stops at the RailsManager surface).
 """
 

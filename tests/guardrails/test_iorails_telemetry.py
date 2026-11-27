@@ -664,7 +664,7 @@ class TestSpanHierarchy:
         """Regression: with a working TracerProvider wired to an exporter but
         ``config.tracing.enabled=False``, no child spans must leak through.
 
-        Previously ``EngineRegistry``/``RailsManager``/``RailAction`` called
+        Previously the legacy registry, manager, and action layers called
         ``get_tracer()`` directly, which would return a real tracer whenever
         the host app had a global provider — producing orphaned rail/action/LLM
         spans with no parent ``guardrails.request`` span.  Threading the tracer
@@ -1909,8 +1909,8 @@ class TestGenerateAsyncLLMMetrics:
     ``ModelRuntime.model_call`` during a real ``IORails.generate_async``
     invocation.
 
-    Mocks at the shared model layer (not the EngineRegistry layer) so the
-    full RailsManager → RailAction → EngineRegistry → metric-emission
+    Mocks at the shared model layer (not the ModelRuntime layer) so the
+    full RailsManager → RailAction → ModelRuntime → metric-emission
     chain executes.  A safe end-to-end call drives multiple LLM calls
     (input rails: content_safety + topic_control; main generation;
     output rails: content_safety) — token + duration metrics fire for
@@ -1922,7 +1922,7 @@ class TestGenerateAsyncLLMMetrics:
         """Safe end-to-end → token usage and duration metrics emit for
         every distinct model the rails invoke.  Verifies the
         ``metrics_enabled=True`` flag plumbs from IORails through
-        EngineRegistry to the per-call emission helpers.
+        ModelRuntime to the per-call emission helpers.
         """
         _stub_deep_pipeline_with_usage(iorails_tracing)
 

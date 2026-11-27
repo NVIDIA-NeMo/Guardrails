@@ -15,14 +15,14 @@
 
 """End-to-end tests for the tool rails at the RailsManager level.
 
-These exercise the full seam this PR builds: the real ModelEngine response
+These exercise the full seam this PR builds: the canonical model response
 parsing (non-streaming ``chat_completion`` and streaming SSE assembly) feeds
 the request-shaped ``RailsManager.are_tool_calls_safe`` / ``are_tool_results_safe``,
 which parse the toolset / extract the tool results + prior calls via the engine
 adapter internally and validate them.
 
-The only mock is the aiohttp transport (the model's HTTP/SSE response body), so
-ModelEngine's parsing runs for real end to end.
+The only mock is the httpx transport (the model's HTTP/SSE response body), so
+canonical response parsing runs for real end to end.
 """
 
 import json
@@ -52,7 +52,7 @@ MESSAGES = [{"role": "user", "content": "What's the weather in Paris?"}]
 
 
 def _build_stack() -> tuple[ModelRuntime, RailsManager]:
-    """Build an ModelRuntime + RailsManager with both tool rails enabled."""
+    """Build a ModelRuntime + RailsManager with both tool rails enabled."""
     config = RailsConfig.from_content(config=STACK_CONFIG)
     engine_registry = ModelRuntime(config.models)
     rails_manager = RailsManager(
