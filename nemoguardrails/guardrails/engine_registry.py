@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Engine registry for IORails: one ModelEngine per configured model type."""
+"""Model registry for IORails, including dedicated decision adapters."""
 
 import asyncio
 import logging
@@ -31,13 +31,15 @@ from nemoguardrails.types import LLMModel, LLMResponse, LLMResponseChunk
 if TYPE_CHECKING:
     from opentelemetry.trace import Tracer
 
+    from nemoguardrails.library.decision_model.model import SystemOneModel
+
 log = logging.getLogger(__name__)
 
 _EngineT = TypeVar("_EngineT", bound=BaseEngine)
 
 
 class EngineRegistry:
-    """One ModelEngine per configured model, keyed by model type."""
+    """Configured chat engines and decision adapters, keyed by model type."""
 
     def __init__(
         self,
@@ -46,17 +48,23 @@ class EngineRegistry:
         metrics_enabled: bool = False,
         content_capture_enabled: bool = False,
     ) -> None:
-        """Build one engine per configured model, handing each the three telemetry settings."""
+        """Build chat engines with telemetry settings and dedicated System One adapters."""
         # ModelEngine owns the instrumentation, so a rail reaching the model through
         # generate_async emits the same spans and metrics as main generation through model_call.
         self._engines: dict[str, BaseEngine] = {}
-        self._llms: dict[str, LLMModel] = {}
+        self._llms: dict[str, "LLMModel | SystemOneModel"] = {}
         self._running = False
         self._owned_engines: dict[str, BaseEngine] = {}
         self._lifecycle_lock = asyncio.Lock()
         self._tracer = tracer
 
         for model_config in models:
+            if model_config.engine == "system_one":
+                from nemoguardrails.library.decision_model.model import SystemOneModel
+
+                # decide() uses the rail's managed HTTP client; no chat engine to start.
+                self._llms[model_config.type] = SystemOneModel(model_config)
+                continue
             engine = ModelEngine(
                 model_config,
                 tracer=tracer,
@@ -73,12 +81,11 @@ class EngineRegistry:
             )
 
     @property
-    def llms(self) -> dict[str, LLMModel]:
-        """The configured model engines keyed by ``Model.type``.
+    def llms(self) -> dict[str, "LLMModel | SystemOneModel"]:
+        """The configured models keyed by ``Model.type``.
 
-        This is the ``Dict[str, LLMModel]`` that library rail actions index by
-        model type (``llms["content_safety"]``).  API engines are not LLMs and
-        are excluded.
+        Library rail actions select a chat model or decision adapter by type,
+        such as ``llms["content_safety"]`` or ``llms["decider"]``.
         """
         return self._llms
 

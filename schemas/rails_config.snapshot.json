@@ -264,6 +264,66 @@
       "title": "CrowdStrikeAIDRRailConfig",
       "type": "object"
     },
+    "DecisionModelBlockCondition": {
+      "additionalProperties": false,
+      "properties": {
+        "probability_at_least": {
+          "description": "Block at or above this probability.",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Probability At Least",
+          "type": "number"
+        }
+      },
+      "required": [
+        "probability_at_least"
+      ],
+      "title": "DecisionModelBlockCondition",
+      "type": "object"
+    },
+    "DecisionModelConfig": {
+      "additionalProperties": false,
+      "description": "Rules selected by each flow's $rule parameter.",
+      "properties": {
+        "fail_open": {
+          "default": false,
+          "description": "Allow text on provider failure instead of blocking.",
+          "title": "Fail Open",
+          "type": "boolean"
+        },
+        "rules": {
+          "additionalProperties": {
+            "$ref": "#/$defs/DecisionModelRule"
+          },
+          "description": "Named decision rules.",
+          "minProperties": 1,
+          "title": "Rules",
+          "type": "object"
+        }
+      },
+      "required": [
+        "rules"
+      ],
+      "title": "DecisionModelConfig",
+      "type": "object"
+    },
+    "DecisionModelRule": {
+      "additionalProperties": false,
+      "properties": {
+        "block_if": {
+          "$ref": "#/$defs/DecisionModelBlockCondition"
+        },
+        "question": {
+          "$ref": "#/$defs/NoulQuestion"
+        }
+      },
+      "required": [
+        "question",
+        "block_if"
+      ],
+      "title": "DecisionModelRule",
+      "type": "object"
+    },
     "F5GuardrailsRailConfig": {
       "description": "Configuration for the F5 Guardrails integration.\n\nNote: The API key is intentionally not part of this config. It is a secret\nand must be provided via the F5_GUARDRAILS_API_KEY environment variable.",
       "properties": {
@@ -811,6 +871,29 @@
       "title": "MultilingualConfig",
       "type": "object"
     },
+    "NoulQuestion": {
+      "additionalProperties": false,
+      "description": "A yes/no question whose answer is a probability.",
+      "properties": {
+        "instructions": {
+          "description": "A yes/no question; yes means the text should be blocked.",
+          "minLength": 1,
+          "title": "Instructions",
+          "type": "string"
+        },
+        "type": {
+          "const": "noul",
+          "default": "noul",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "instructions"
+      ],
+      "title": "NoulQuestion",
+      "type": "object"
+    },
     "PangeaRailConfig": {
       "description": "Configuration data for the Pangea AI Guard API",
       "properties": {
@@ -1316,6 +1399,18 @@
         }
       ],
       "description": "Configuration for CrowdStrike AIDR."
+    },
+    "decision_model": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DecisionModelConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Configuration for the decision model rail."
     },
     "f5": {
       "anyOf": [

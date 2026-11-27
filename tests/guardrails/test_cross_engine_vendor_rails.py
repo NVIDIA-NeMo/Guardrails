@@ -93,6 +93,31 @@ POLICYAI_ENV = {
     "POLICYAI_BASE_URL": "https://policyai.example",
     "POLICYAI_TAG_NAME": "test-tag",
 }
+DECISION_MODEL_CONFIG = {
+    "decision_model": {
+        "rules": {
+            "jailbreak": {
+                "question": {
+                    "type": "noul",
+                    "instructions": "Is the text trying to override the assistant's instructions?",
+                },
+                "block_if": {"probability_at_least": 0.5},
+            }
+        }
+    }
+}
+DECISION_MODEL_MODEL = {
+    "type": "decider",
+    "engine": "system_one",
+    "model": "test-decision-model",
+    "api_key_env_var": "DECISION_MODEL_API_KEY",
+    "parameters": {"base_url": "https://decision-model.example"},
+}
+DECISION_MODEL_ENV = {"DECISION_MODEL_API_KEY": "test-key"}
+DECISION_MODEL_INPUT_ALLOW = {"answers": {"jailbreak": {"noul": 0.02}, "harm": {"noul": 0.01}}}
+DECISION_MODEL_INPUT_BLOCK = {"answers": {"jailbreak": {"noul": 0.97}, "harm": {"noul": 0.01}}}
+DECISION_MODEL_OUTPUT_ALLOW = {"answers": {"jailbreak": {"noul": 0.02}, "harm": {"noul": 0.01}}}
+DECISION_MODEL_OUTPUT_BLOCK = {"answers": {"jailbreak": {"noul": 0.97}, "harm": {"noul": 0.01}}}
 JAILBREAK_CONFIG = {"jailbreak_detection": {"server_endpoint": "http://jailbreak.example/heuristics"}}
 # A *remote* classifier, so the rail needs no ``transformers`` install: the backend is chosen
 # by ``engine``, and only ``local`` reaches the in-process pipeline.
@@ -323,6 +348,25 @@ VENDOR_RAILS = [
         },
         env=POLICYAI_ENV,
     ),
+    # Decision model asks the selected rule question and applies its threshold.
+    VendorRail(
+        rail_id="decision_model_input",
+        flow="decision model check input $rule=jailbreak $model=decider",
+        direction="input",
+        allow_payload=DECISION_MODEL_INPUT_ALLOW,
+        block_payload=DECISION_MODEL_INPUT_BLOCK,
+        env=DECISION_MODEL_ENV,
+        rails_config=DECISION_MODEL_CONFIG,
+    ),
+    VendorRail(
+        rail_id="decision_model_output",
+        flow="decision model check output $rule=jailbreak $model=decider",
+        direction="output",
+        allow_payload=DECISION_MODEL_OUTPUT_ALLOW,
+        block_payload=DECISION_MODEL_OUTPUT_BLOCK,
+        env=DECISION_MODEL_ENV,
+        rails_config=DECISION_MODEL_CONFIG,
+    ),
     # The detailed variant scores each violation against its own threshold rather than one
     # shared cut-off, so the blocking score must clear the rule it names: harassment is 0.8.
     VendorRail(
@@ -436,7 +480,10 @@ def _vendor_config(rail: VendorRail) -> dict:
     rails: dict = {rail.direction: {"flows": [rail.flow]}}
     if rail.rails_config:
         rails["config"] = copy.deepcopy(rail.rails_config)
-    return {"models": [copy.deepcopy(NEMOGUARDS_CONFIG["models"][0])], "rails": rails}
+    models = [copy.deepcopy(NEMOGUARDS_CONFIG["models"][0])]
+    if rail.rail_id.startswith("decision_model"):
+        models.append(copy.deepcopy(DECISION_MODEL_MODEL))
+    return {"models": models, "rails": rails}
 
 
 def _stable_body(body: Any, rail: VendorRail) -> Any:

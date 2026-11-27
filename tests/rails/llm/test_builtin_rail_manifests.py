@@ -226,6 +226,8 @@ def test_named_model_surfaces_bind_literal_model_names():
 def test_model_dependent_surfaces_declare_model_bindings():
     surfaces = default_rail_catalog().surfaces()
     expected = {
+        (RailDirection.INPUT, "decision model check input"),
+        (RailDirection.OUTPUT, "decision model check output"),
         (RailDirection.INPUT, "content safety check input"),
         (RailDirection.OUTPUT, "content safety check output"),
         (RailDirection.INPUT, "llama guard check input"),
@@ -318,6 +320,7 @@ def test_configurable_api_key_requirements_document_shipped_names():
     manifests = all_rail_manifests()
 
     expected = {
+        "decision_model": "DECISION_MODEL_API_KEY",
         "gliner": "NVIDIA_API_KEY",
         "jailbreak_detection": "NVIDIA_API_KEY",
         "trend_micro": "V1_API_KEY",

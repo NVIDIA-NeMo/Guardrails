@@ -255,3 +255,20 @@ def test_script_updated_event_requires_interim_script():
             event_type,
             action_uid="some-uid",
         )
+
+
+@pytest.mark.parametrize(
+    "reference,expected",
+    [
+        ("decision model check input $rule=jailbreak $model=decider", {"rule": "jailbreak", "model": "decider"}),
+        ('check $model="decision model" $rule=harm', {"model": "decision model", "rule": "harm"}),
+        ("check(rule='harm',model=decider)", {"rule": "harm", "model": "decider"}),
+        ("check $rule=harm,model=decider", {"rule": "harm", "model": "decider"}),
+        ("check $model=decider", {"model": "decider"}),
+        ("check", {}),
+    ],
+)
+def test_flow_parameters_preserve_legacy_syntax_and_all_named_rail_arguments(reference, expected):
+    from nemoguardrails.utils import _get_flow_params
+
+    assert _get_flow_params(reference) == expected
