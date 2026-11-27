@@ -155,6 +155,8 @@ def create_guardrails(config: RailsConfig, model: LLMModel) -> Guardrails:
 
 The model must provide `generate_async()` returning `LLMResponse`, `stream_async()` yielding `LLMResponseChunk`, and the `model_name`, `provider_name`, and `provider_url` properties. Buffered and streaming calls retain the model's structured responses, usage, reasoning, and tool metadata. Tool support depends on the model adapter.
 
+In `stream_async()`, emit completed tool calls in `LLMResponseChunk.delta_tool_calls`, in generation order. You can emit incremental batches or cumulative lists: repeated nonempty call IDs update the existing call while preserving its original position. IORails validates the combined list before publishing it. Use `tool_call_deltas` for partial arguments.
+
 The injected model overrides a configured `main` and satisfies main-backed rails even when no main entry is configured. Specialized model entries still use the selected framework. `rails.llm` returns the injected model, and request `llm_params` override its adapter defaults. Create a new `Guardrails` instance to replace this model; IORails does not support `update_llm()`.
 
 IORails and LLMRails both use the first configured model of each type. Before 0.26, IORails used the last entry. If your configuration relied on that ordering, keep only the intended entry for each repeated type when upgrading.

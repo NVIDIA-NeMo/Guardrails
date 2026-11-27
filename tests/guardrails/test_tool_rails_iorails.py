@@ -34,7 +34,8 @@ from nemoguardrails import Guardrails
 from nemoguardrails.guardrails.guardrails_types import RailDirection
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.rails.llm.config import RailsConfig
-from nemoguardrails.types import ToolCallChunk
+from nemoguardrails.testing.fake_model import FakeLLMModel
+from nemoguardrails.types import LLMResponseChunk, ToolCall, ToolCallChunk, ToolCallFunction
 from tests.guardrails.async_helpers import started_iorails
 from tests.guardrails.model_helpers import install_model_http_mock
 from tests.guardrails.tool_helpers import (
@@ -728,3 +729,40 @@ async def test_injected_langchain_stream_closes_on_invalid_call(langchain_tool_r
         assert closed
     assert "valid JSON object" in json.loads(chunks[-1])["error"]["message"]
     assert not any(isinstance(chunk, ToolCallChunk) for chunk in chunks)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("first_undeclared", [False, True])
+@pytest.mark.parametrize("cumulative", [False, True])
+async def test_injected_stream_validates_all_completed_batches(monkeypatch, first_undeclared, cumulative):
+    calls = [
+        ToolCall(
+            id="first",
+            function=ToolCallFunction(
+                name="undeclared" if first_undeclared else "get_weather", arguments={"city": "Paris"}
+            ),
+        ),
+        ToolCall(id="second", function=ToolCallFunction(name="get_weather", arguments={"city": "Boston"})),
+    ]
+    model = FakeLLMModel(responses=[])
+
+    async def stream(*args, **kwargs):
+        yield LLMResponseChunk(delta_tool_calls=[calls[0]])
+        yield LLMResponseChunk(delta_tool_calls=calls[:] if cumulative else [calls[1]], finish_reason="tool_calls")
+
+    monkeypatch.setattr(model, "stream_async", stream)
+    config = RailsConfig.from_content(config={"models": [], "rails": TOOL_CONFIG["rails"]})
+    rails = Guardrails(config, llm=model, require_iorails=True)
+    check = AsyncMock(wraps=rails.rails_engine.rails_manager.are_tool_calls_safe)
+    monkeypatch.setattr(rails.rails_engine.rails_manager, "are_tool_calls_safe", check)
+    async with rails:
+        chunks = await _collect(rails.stream_async(messages=MESSAGES, options={"llm_params": LLM_PARAMS}))
+    check.assert_awaited_once()
+    assert check.await_args.args[0] == calls
+    emitted = [call for chunk in chunks if isinstance(chunk, ToolCallChunk) for call in chunk.tool_calls]
+    if first_undeclared:
+        assert _stream_violation_chunks(chunks)
+        assert emitted == []
+    else:
+        assert not _stream_violation_chunks(chunks)
+        assert emitted == calls

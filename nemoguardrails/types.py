@@ -312,6 +312,14 @@ class LLMResponse:
 
 @dataclass
 class LLMResponseChunk:
+    """Incremental model output.
+
+    Emit completed calls in ``delta_tool_calls``, in generation order. Repeated
+    nonempty IDs update the existing call without changing its position, so both
+    incremental batches and cumulative lists are supported. Use
+    ``tool_call_deltas`` for partial tool-call arguments.
+    """
+
     delta_content: Optional[str] = None
     delta_reasoning: Optional[str] = None
     delta_tool_calls: Optional[List[ToolCall]] = None

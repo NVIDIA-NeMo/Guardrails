@@ -35,7 +35,7 @@ from nemoguardrails.logging.processing_log import processing_log_var
 from nemoguardrails.logging.stats import LLMStats
 from nemoguardrails.streaming import StreamingHandler
 from nemoguardrails.testing.fake_model import FakeLLMModel
-from nemoguardrails.types import LLMResponse, LLMResponseChunk, ToolCall, ToolCallFunction, UsageInfo
+from nemoguardrails.types import LLMResponse, LLMResponseChunk, ToolCall, ToolCallChunk, ToolCallFunction, UsageInfo
 
 
 @pytest.fixture(autouse=True)
@@ -391,3 +391,69 @@ async def test_cancellation_wins_over_stream_cleanup_failure(monkeypatch, delive
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
         await task
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("delivery", ["handler", "typed"])
+@pytest.mark.parametrize("finish_reason", ["tool_calls", "length", "content_filter"])
+@pytest.mark.parametrize("cumulative", [False, True])
+async def test_completed_tool_call_batches_are_retained_in_order(monkeypatch, delivery, finish_reason, cumulative):
+    calls = [
+        ToolCall(id="first", function=ToolCallFunction(name="one", arguments={})),
+        ToolCall(id="second", function=ToolCallFunction(name="two", arguments={})),
+    ]
+    first_batch = [calls[0]]
+    second_batch = calls[:] if cumulative else [calls[1]]
+    chunks = [
+        LLMResponseChunk(delta_content="Hello"),
+        LLMResponseChunk(delta_tool_calls=first_batch),
+        LLMResponseChunk(delta_tool_calls=second_batch, finish_reason=finish_reason),
+        LLMResponseChunk(delta_tool_calls=[], usage=UsageInfo(input_tokens=2, output_tokens=3, total_tokens=5)),
+    ]
+    model, closed = chunk_model(monkeypatch, chunks)
+    delivered = []
+    if delivery == "typed":
+
+        async def consume(chunk):
+            delivered.extend(chunk.delta_tool_calls or [])
+
+        response = await llm_call(model, "prompt", chunk_consumer=consume)
+    else:
+        handler = StreamingHandler()
+        response = await llm_call(model, "prompt", streaming_handler=handler)
+        events = [event async for event in handler]
+        delivered = [call for event in events if isinstance(event, ToolCallChunk) for call in event.tool_calls]
+    assert delivered == first_batch + second_batch
+    assert response.tool_calls == calls
+    assert response.content == "Hello"
+    assert response.finish_reason == finish_reason
+    assert tool_calls_var.get() == [call.to_dict() for call in calls]
+    assert first_batch == [calls[0]]
+    assert second_batch == (calls if cumulative else [calls[1]])
+    assert closed == [True]
+    assert llm_call_info_var.get().completion == "Hello"
+    assert llm_call_info_var.get().total_tokens == 5
+    assert llm_stats_var.get().get_stat("total_calls") == 1
+    assert llm_stats_var.get().get_stat("total_tokens") == 5
+
+
+@pytest.mark.asyncio
+async def test_completed_call_updates_keep_order_and_anonymous_calls(monkeypatch):
+    first = ToolCall(id="first", function=ToolCallFunction(name="lookup", arguments={"version": 1}))
+    updated = ToolCall(id="first", function=ToolCallFunction(name="lookup", arguments={"version": 2}))
+    anonymous_a = ToolCall(id="", function=ToolCallFunction(name="a", arguments={}))
+    anonymous_b = ToolCall(id="", function=ToolCallFunction(name="b", arguments={}))
+    model, _ = chunk_model(
+        monkeypatch,
+        [
+            LLMResponseChunk(delta_tool_calls=[first, anonymous_a]),
+            LLMResponseChunk(delta_tool_calls=[updated, anonymous_b], finish_reason="tool_calls"),
+        ],
+    )
+
+    async def consume(chunk):
+        pass
+
+    response = await llm_call(model, "prompt", chunk_consumer=consume)
+    assert response.tool_calls == [updated, anonymous_a, anonymous_b]
+    assert first.function.arguments == {"version": 1}

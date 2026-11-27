@@ -48,6 +48,7 @@ from nemoguardrails.types import (
     LLMModel,
     LLMResponse,
     LLMResponseChunk,
+    ToolCall,
     ToolCallChunk,
     ToolCallDeltaChunk,
     UsageInfo,
@@ -144,7 +145,8 @@ async def _stream_llm_call(
     accumulated_content: List[str] = []
     accumulated_provider_metadata: Dict[str, Any] = {}
     accumulated_reasoning: List[str] = []
-    tool_calls = None
+    tool_calls: List[ToolCall] = []
+    tool_call_indices: Dict[str, int] = {}
     streaming_tool_deltas = False
     tool_calls_var.set(None)
     model_name: Optional[str] = None
@@ -173,8 +175,13 @@ async def _stream_llm_call(
                 accumulated_reasoning.append(chunk.delta_reasoning)
             if chunk.tool_call_deltas:
                 streaming_tool_deltas = True
-            if chunk.delta_tool_calls:
-                tool_calls = chunk.delta_tool_calls
+            for call in chunk.delta_tool_calls or []:
+                if call.id and call.id in tool_call_indices:
+                    tool_calls[tool_call_indices[call.id]] = call
+                else:
+                    if call.id:
+                        tool_call_indices[call.id] = len(tool_calls)
+                    tool_calls.append(call)
             if chunk.model:
                 model_name = chunk.model
             if chunk.finish_reason:
@@ -211,7 +218,7 @@ async def _stream_llm_call(
         response = LLMResponse(
             content=handler.completion if handler is not None else "".join(accumulated_content),
             reasoning="".join(accumulated_reasoning) or None,
-            tool_calls=tool_calls,
+            tool_calls=tool_calls or None,
             model=model_name,
             finish_reason=finish_reason,
             request_id=request_id,
