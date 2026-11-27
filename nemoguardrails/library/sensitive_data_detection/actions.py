@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import asyncio
+import copy
 import logging
 from collections.abc import Callable
 from concurrent.futures import CancelledError, ThreadPoolExecutor
@@ -116,7 +117,10 @@ def _get_ad_hoc_recognizers(sdd_config: SensitiveDataDetection):
 
     ad_hoc_recognizers = []
     for recognizer in sdd_config.recognizers:
-        ad_hoc_recognizers.append(PatternRecognizer.from_dict(recognizer))
+        # PatternRecognizer.from_dict mutates the input dictionary in-place by converting
+        # pattern mappings into Pattern instances. Pass a deepcopy to avoid mutating
+        # the stored configuration across successive calls (resolves #2391).
+        ad_hoc_recognizers.append(PatternRecognizer.from_dict(copy.deepcopy(recognizer)))
     return ad_hoc_recognizers
 
 
