@@ -1173,3 +1173,20 @@ async def test_langchain_closes_provider_stream_on_invalid_generated_call():
     with pytest.raises(LLMResponseValidationError, match="valid JSON object"):
         await _collect_stream(LangChainLLMAdapter(llm))
     assert closed
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("finish_reason", [None, "tool_calls", "stop", "length", "content_filter"])
+@pytest.mark.parametrize("name", [None, "", "   ", "clock"])
+async def test_langchain_completed_calls_require_function_names(finish_reason, name):
+    chunks = [_make_lc_chunk(tool_call_chunks=[{"index": 0, "id": "call-clock", "name": name, "args": ""}])]
+    if finish_reason is not None:
+        chunks.append(_make_lc_chunk(response_metadata={"finish_reason": finish_reason}))
+    adapter = _make_adapter_with_chunks(chunks)
+    if name and name.strip():
+        results = await _collect_stream(adapter)
+        calls = [call for chunk in results for call in chunk.delta_tool_calls or []]
+        assert calls == [ToolCall(id="call-clock", function=ToolCallFunction(name=name, arguments={}))]
+    else:
+        with pytest.raises(LLMResponseValidationError, match="function name"):
+            await _collect_stream(adapter)

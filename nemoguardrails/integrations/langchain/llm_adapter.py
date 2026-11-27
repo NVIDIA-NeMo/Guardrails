@@ -440,6 +440,8 @@ def _finalize_tool_call_acc(acc: Dict[int, Dict[str, Any]]) -> List[ToolCall]:
     result = []
     for idx in sorted(acc.keys()):
         entry = acc[idx]
+        if not entry["name"].strip():
+            raise LLMResponseValidationError("Tool call must include a function name")
         raw_args = entry["arguments_buffer"]
         try:
             args_dict = json.loads(raw_args) if raw_args else {}
