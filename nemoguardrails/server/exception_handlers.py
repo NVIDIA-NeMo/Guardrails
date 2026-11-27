@@ -35,7 +35,6 @@ from nemoguardrails.exceptions import (
     StreamingNotSupportedError,
     ToolConversationTooLongError,
 )
-from nemoguardrails.guardrails.model_engine import ModelEngineError
 from nemoguardrails.http.errors import HTTPClientError, HTTPStatusError
 from nemoguardrails.llm.clients._errors import (
     as_client_error,
@@ -99,7 +98,7 @@ def _upstream_status(exc: BaseException) -> Optional[int]:
 
 
 async def llm_call_exception_handler(
-    request: Request, exc: Union[LLMCallException, ModelEngineError, HTTPClientError, LLMResponseValidationError]
+    request: Request, exc: Union[LLMCallException, HTTPClientError, LLMResponseValidationError]
 ) -> Response:
     """Map provider failures to their HTTP status, or 502 for invalid responses."""
     log.exception(exc)

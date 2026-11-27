@@ -32,7 +32,6 @@ from typing import TYPE_CHECKING, Optional
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.exceptions import LLMCallException
 from nemoguardrails.guardrails.guardrails_types import get_request_id
-from nemoguardrails.guardrails.model_engine import ModelEngineError
 from nemoguardrails.guardrails.telemetry import record_span_error
 from nemoguardrails.llm.clients._errors import _redact_secrets, _sanitize, as_client_error
 
@@ -41,15 +40,10 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-# Exception types carrying an upstream HTTP status on ``.status``. A rail reaching its model
-# through ``llm_call`` sees only ``LLMCallException``, which wraps everything
-# ``generate_async`` raises; ``ModelEngineError`` is what a direct ``EngineRegistry`` caller sees.
-_STATUS_BEARING_ERRORS = (ModelEngineError, LLMCallException)
-
 
 def _upstream_http_status(exc: Exception) -> Optional[int]:
     """Return the upstream HTTP status *exc* carries, or None when it carries none."""
-    if isinstance(exc, _STATUS_BEARING_ERRORS):
+    if isinstance(exc, LLMCallException):
         return exc.status
     return None
 

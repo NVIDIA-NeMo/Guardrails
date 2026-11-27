@@ -31,7 +31,6 @@ from nemoguardrails.exceptions import ConfigurationError, LLMCallException, NonS
 from nemoguardrails.guardrails.guardrails import Guardrails
 from nemoguardrails.guardrails.guardrails_types import quoted_identity
 from nemoguardrails.guardrails.iorails import IORails
-from nemoguardrails.guardrails.model_engine import ModelEngineError
 from nemoguardrails.http.errors import HTTPClientError
 from nemoguardrails.llm.clients._errors import client_facing_message
 from nemoguardrails.rails.llm.config import Model, RailsConfig, _get_flow_model
@@ -60,7 +59,7 @@ log = logging.getLogger(__name__)
 
 # What `llm_call_exception_handler` answers on the main server. A rail's model call that fails with an upstream
 # HTTP status propagates out of `check_async()` rather than blocking, but here it is a failed rail all the same.
-_MODEL_CALL_ERRORS = (LLMCallException, ModelEngineError, HTTPClientError)
+_MODEL_CALL_ERRORS = (LLMCallException, HTTPClientError)
 
 # What the log line names as deciding a call the tool policy denies, in place of a rail.
 _TOOL_POLICY = "tool policy"

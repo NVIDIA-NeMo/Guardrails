@@ -181,9 +181,8 @@ STREAM_ERROR_TYPES = frozenset(
 
 def as_client_error(exception: BaseException) -> Optional[LLMClientError]:
     """Return the underlying :class:`LLMClientError`, following nested ``inner_exception`` links."""
-    # The chain can be more than one link deep: a library rail reaching an IORails model
-    # raises ModelEngineError carrying the client error, and ``llm_call`` then wraps that
-    # again into LLMCallException. ``seen`` guards a wrapper that references itself.
+    # Custom model wrappers can nest domain exceptions. Guard cycles while preserving
+    # the classified client error at any depth.
     seen = set()
     current: Any = exception
     while current is not None and id(current) not in seen:
