@@ -153,13 +153,10 @@ async def test_delta_arrives_before_completion_and_final_calls_are_not_duplicate
         assert response.finish_reason == finish_reason
         assert response.content == handler.completion == ""
         assert response.usage.total_tokens == 16
-        if finish_reason in ("stop", "tool_calls"):
-            assert [(call.id, call.function.name, call.function.arguments) for call in response.tool_calls] == [
-                ("call_paris", "get_weather", {"city": "Paris"}),
-                ("call_boston", "get_weather", {"city": "Boston"}),
-            ]
-        else:
-            assert response.tool_calls is None
+        assert [(call.id, call.function.name, call.function.arguments) for call in response.tool_calls] == [
+            ("call_paris", "get_weather", {"city": "Paris"}),
+            ("call_boston", "get_weather", {"city": "Boston"}),
+        ]
         assert provider_stream.closed.is_set()
     finally:
         provider_stream.release.set()

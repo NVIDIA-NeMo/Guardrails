@@ -18,7 +18,7 @@
 These engine-internal dataclasses are the normalized, provider-neutral shape the
 tool rails validate against. They are NOT part of the public API and NOT carried
 on ``GenerationOptions``: the request surface stays the provider-native
-``llm_params`` block, which ``ModelEngine`` parses into a ``Toolset`` (and incoming
+``llm_params`` block, which ``tool_parsing`` parses into a ``Toolset`` (and incoming
 tool results into ``ToolResult`` objects) per inference call.
 
 ``Tool`` is a declared tool definition (what the caller offers); ``ToolCall`` (in
