@@ -598,7 +598,7 @@ class TestDefaultFramework:
         await fw.reset()
 
         assert all(c.is_closed for c in clients)
-        assert fw._clients == {}
+        assert fw._pool.clients == {}
 
     @pytest.mark.asyncio
     async def test_reset_clears_registered_providers(self):
@@ -634,7 +634,7 @@ class TestDefaultFramework:
         injected = httpx.AsyncClient()
         client = OpenAICompatibleClient(base_url="https://api.openai.com/v1", http_client=injected)
         fw = DefaultFramework()
-        fw._clients[("injected",)] = client
+        fw._pool.clients[("injected",)] = client
 
         await fw.reset()
 
@@ -653,7 +653,7 @@ class TestDefaultFramework:
         await fw.aclose()
 
         assert client.is_closed
-        assert fw._clients == {}
+        assert fw._pool.clients == {}
         assert "custom" in fw._providers
 
     @pytest.mark.asyncio
@@ -707,7 +707,7 @@ class TestDefaultFramework:
             fw.clear_providers()
 
             assert not client.is_closed
-            assert fw._clients != {}
+            assert fw._pool.clients != {}
         finally:
             await fw.aclose()
 
@@ -723,7 +723,7 @@ class TestDefaultFramework:
         await fw.reset()
 
         assert client.is_closed
-        assert fw._clients == {}
+        assert fw._pool.clients == {}
         assert fw._providers == {}
 
     @pytest.mark.asyncio

@@ -262,7 +262,7 @@ def _forward_metrics_options(exporter: Optional[str], host: Optional[str], port:
         os.environ["NEMO_GUARDRAILS_SERVER_METRICS_PORT"] = str(port)
 
 
-_HOOKS_SERVER_INFO_LOGGERS = ("nemoguardrails.server", "nemoguardrails.guardrails")
+_HOOKS_SERVER_INFO_LOGGERS = ("nemoguardrails.server", "nemoguardrails.guardrails", "nemoguardrails.llm.clients.base")
 
 
 @app.command("hooks-server")

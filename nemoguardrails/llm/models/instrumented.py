@@ -98,6 +98,11 @@ class InstrumentedLLMModel:
         """Return the underlying model for direct access or re-instrumentation."""
         return self._model
 
+    @property
+    def default_parameters(self) -> Mapping[str, Any]:
+        """Optional generation defaults used by tool admission and instrumentation."""
+        return getattr(self._model, "default_parameters", {})
+
     def _request_params(self, stop: Optional[list[str]], kwargs: dict[str, Any]) -> dict[str, Any]:
         params = {**self._default_request_params, **kwargs}
         if stop is not None:

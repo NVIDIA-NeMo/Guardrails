@@ -15,11 +15,8 @@
 
 """End-to-end coverage for the OpenAI-compatible HTTP error envelope, through the ASGI app."""
 
-# Every case lets the exception originate at the transport boundary, which is what catches the
-# chains that break in production. Two transports are mocked because the stack uses two: the main
-# model goes through the OpenAI-compatible client over httpx (``httpx_mock``, with ``testserver``
-# excluded so ``TestClient`` still reaches the app), and an IORails rail reaches its model through
-# ``ModelEngine`` over aiohttp (``aioresponses``).
+# Both runtime paths use the shared httpx transport. TestClient is excluded from
+# interception so requests still traverse the real ASGI application.
 
 import asyncio
 import json
@@ -28,7 +25,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
-from aioresponses import aioresponses
 
 pytest.importorskip("openai", reason="openai is required for server tests")
 from fastapi.testclient import TestClient
@@ -289,25 +285,23 @@ class TestUpstreamStatusPassthrough:
 class TestRailEngineErrors:
     """Failures raised by an IORails rail, forwarded rather than reported as a verdict."""
 
-    def test_rail_upstream_429_is_forwarded(self, serve_config):
+    def test_rail_upstream_429_is_forwarded(self, serve_config, httpx_mock):
         """A provider rate limit hit by a rail reaches the client as a 429, not a block."""
         # A block and a rate limit mean very different things to a caller, and only one is
         # worth retrying.
         serve_config(CONTENT_SAFETY_CONFIG, iorails=True)
 
-        with aioresponses() as mocked:
-            mocked.post(MAIN_MODEL_URL, status=429, body="slow down", repeat=True)
-            response = _chat()
+        httpx_mock.add_response(url=MAIN_MODEL_URL, status_code=429, text="slow down", is_reusable=True)
+        response = _chat()
 
         assert response.status_code == 429
         assert response.json()["error"]["type"] == "rate_limit_error"
 
-    def test_rail_upstream_error_forwards_provider_code_and_param(self, serve_config):
-        """A rail failure nests twice and still carries the provider's fields.
+    def test_rail_upstream_error_forwards_provider_code_and_param(self, serve_config, httpx_mock):
+        """A rail invocation carries the classified provider's code and param.
 
-        The rail reaches its model through ``llm_call``, which wraps the engine error again:
-        LLMCallException -> ModelEngineError -> LLMClientError. Unwrapping only one link
-        nulls code and param for every rail-served failure.
+        The shared ``llm_call`` wraps LLMClientError in LLMCallException; the HTTP
+        envelope must retain the provider fields while hiding internal model details.
         """
         serve_config(CONTENT_SAFETY_CONFIG, iorails=True)
         body = {
@@ -319,9 +313,8 @@ class TestRailEngineErrors:
             }
         }
 
-        with aioresponses() as mocked:
-            mocked.post(MAIN_MODEL_URL, status=429, body=json.dumps(body), repeat=True)
-            response = _chat()
+        httpx_mock.add_response(url=MAIN_MODEL_URL, status_code=429, json=body, is_reusable=True)
+        response = _chat()
 
         assert response.status_code == 429
         error = response.json()["error"]
@@ -496,29 +489,17 @@ OPENAI_UPSTREAM_FAILURES = [
 
 @contextmanager
 def _upstream_failure(engine: str, httpx_mock: HTTPXMock, status: int, body: dict | str, headers: dict | None = None):
-    """Mock the main-model transport the given engine uses: aiohttp for IORails, httpx for LLMRails.
-
-    ``body`` is a dict for a JSON provider error, or a str for a body the provider did not
-    render as JSON at all (an empty body, or a gateway's HTML page).
-    """
-    raw_body = json.dumps(body) if isinstance(body, dict) else body
-    if engine == "iorails":
-        with aioresponses() as mocked:
-            mocked.post(MAIN_MODEL_URL, status=status, body=raw_body, headers=headers or {}, repeat=True)
-            yield
-    else:
-        # A dict goes through ``json=`` so the common case keeps its content-type; a raw body
-        # has none to declare.
-        payload = {"json": body} if isinstance(body, dict) else {"content": raw_body.encode()}
-        httpx_mock.add_response(
-            url=MAIN_MODEL_URL,
-            method="POST",
-            status_code=status,
-            headers=headers,
-            is_reusable=True,
-            **payload,
-        )
-        yield
+    """Mock the shared main-model transport while retaining provider response shape."""
+    payload = {"json": body} if isinstance(body, dict) else {"content": body.encode()}
+    httpx_mock.add_response(
+        url=MAIN_MODEL_URL,
+        method="POST",
+        status_code=status,
+        headers=headers,
+        is_reusable=True,
+        **payload,
+    )
+    yield
 
 
 def _assert_served_engine(engine: str) -> None:

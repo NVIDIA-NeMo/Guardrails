@@ -18,6 +18,7 @@ import logging
 import uuid
 from typing import Any, AsyncIterator, Dict, List, NamedTuple, Optional, Union
 
+from nemoguardrails.exceptions import LLMResponseValidationError
 from nemoguardrails.llm.openai_reasoning import is_openai_reasoning_model
 from nemoguardrails.types import (
     ChatMessage,
@@ -198,35 +199,56 @@ class LangChainLLMAdapter:
 
         tool_call_acc: Dict[int, Dict[str, Any]] = {}
 
-        async for chunk in llm.astream(messages):
-            for tc_chunk in getattr(chunk, "tool_call_chunks", None) or []:
-                idx = tc_chunk.get("index", 0)
-                if idx not in tool_call_acc:
-                    tool_call_acc[idx] = {
-                        "id": tc_chunk.get("id") or "",
-                        "name": tc_chunk.get("name") or "",
-                        "arguments_buffer": "",
-                    }
-                else:
-                    if tc_chunk.get("id"):
-                        tool_call_acc[idx]["id"] = tc_chunk["id"]
-                    if tc_chunk.get("name"):
-                        tool_call_acc[idx]["name"] = tc_chunk["name"]
-                arg_fragment = tc_chunk.get("args") or ""
-                if arg_fragment:
-                    tool_call_acc[idx]["arguments_buffer"] += arg_fragment
+        stream = llm.astream(messages)
+        failed = False
+        try:
+            async for chunk in stream:
+                for tc_chunk in getattr(chunk, "tool_call_chunks", None) or []:
+                    idx = tc_chunk.get("index", 0)
+                    if idx not in tool_call_acc:
+                        tool_call_acc[idx] = {
+                            "id": tc_chunk.get("id") or "",
+                            "name": tc_chunk.get("name") or "",
+                            "arguments_buffer": "",
+                        }
+                    else:
+                        if tc_chunk.get("id"):
+                            tool_call_acc[idx]["id"] = tc_chunk["id"]
+                        if tc_chunk.get("name"):
+                            tool_call_acc[idx]["name"] = tc_chunk["name"]
+                    arg_fragment = tc_chunk.get("args") or ""
+                    if arg_fragment:
+                        tool_call_acc[idx]["arguments_buffer"] += arg_fragment
 
-            response_chunk = _langchain_chunk_to_llm_response_chunk(chunk)
+                response_chunk = _langchain_chunk_to_llm_response_chunk(chunk)
 
-            # On the terminal chunk, finalize any accumulated tool-call fragments.
-            # Chat completions signals this with finish_reason "tool_calls"; the
-            # Responses API reports status "completed" (-> "stop"), so accept the
-            # terminal reasons under which a tool call can legitimately close.
-            if tool_call_acc and response_chunk.finish_reason in _TOOL_CALL_TERMINAL_REASONS:
-                response_chunk.delta_tool_calls = _finalize_tool_call_acc(tool_call_acc)
-                response_chunk.finish_reason = "tool_calls"
+                if tool_call_acc and response_chunk.finish_reason is not None:
+                    response_chunk.delta_tool_calls = _finalize_tool_call_acc(tool_call_acc)
+                    tool_call_acc.clear()
+                    if response_chunk.finish_reason == "stop":
+                        response_chunk.finish_reason = "tool_calls"
 
-            yield response_chunk
+                yield response_chunk
+
+            # Missing finish frames must not let malformed generated calls disappear.
+            if tool_call_acc:
+                yield LLMResponseChunk(
+                    delta_tool_calls=_finalize_tool_call_acc(tool_call_acc),
+                    finish_reason="tool_calls",
+                    model=self.model_name,
+                )
+        except BaseException:
+            failed = True
+            raise
+        finally:
+            close = getattr(stream, "aclose", None)
+            if close is not None:
+                try:
+                    await close()
+                except Exception:
+                    if not failed:
+                        raise
+                    log.warning("Failed to close an interrupted LangChain stream", exc_info=True)
 
 
 class LangChainFramework:
@@ -319,12 +341,6 @@ _INCOMPLETE_REASON_MAP: Dict[str, FinishReason] = {
     "content_filter": "content_filter",
 }
 
-# Terminal finish reasons under which accumulated streaming tool-call fragments
-# should be finalized as a *complete* tool call. Chat completions ends a clean
-# tool-call turn with "tool_calls"; the Responses API ends it with status
-# "completed" (-> "stop").
-_TOOL_CALL_TERMINAL_REASONS: frozenset = frozenset({"tool_calls", "stop"})
-
 
 def _finish_reason_from_status(response_metadata: Dict[str, Any]) -> Optional[FinishReason]:
     """Derive a finish reason from the Responses API ``status`` field.
@@ -400,9 +416,13 @@ def _extract_reasoning(response: Any) -> Optional[str]:
 
 
 def _extract_tool_calls(response: Any) -> Optional[List[ToolCall]]:
+    if getattr(response, "invalid_tool_calls", None):
+        raise LLMResponseValidationError("Tool call arguments must be a valid JSON object")
     raw = getattr(response, "tool_calls", None)
     if not raw:
         return None
+    if any(not isinstance(tc.get("args", {}), dict) for tc in raw):
+        raise LLMResponseValidationError("Tool call arguments must be a valid JSON object")
     return [
         ToolCall(
             id=tc.get("id") or str(uuid.uuid4()),
@@ -424,8 +444,9 @@ def _finalize_tool_call_acc(acc: Dict[int, Dict[str, Any]]) -> List[ToolCall]:
         try:
             args_dict = json.loads(raw_args) if raw_args else {}
         except json.JSONDecodeError:
-            log.warning("Failed to parse tool call arguments for '%s' (index %d): %r", entry["name"], idx, raw_args)
-            args_dict = {}
+            raise LLMResponseValidationError("Tool call arguments must be a valid JSON object") from None
+        if not isinstance(args_dict, dict):
+            raise LLMResponseValidationError("Tool call arguments must be a valid JSON object")
         result.append(
             ToolCall(
                 id=entry["id"] or str(uuid.uuid4()),

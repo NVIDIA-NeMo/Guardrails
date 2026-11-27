@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import json
 import logging
 import os
@@ -62,12 +63,14 @@ def _resolve_api_key(provider_name: str) -> Optional[str]:
     return None
 
 
-class DefaultFramework:
-    def __init__(self):
-        self._providers: Dict[str, Any] = {}
-        self._clients: Dict[tuple, OpenAICompatibleClient] = {}
+class _ClientPool:
+    def __init__(self, *, lazy: bool = False, defaults: Optional[Dict[str, Any]] = None):
+        self.clients: Dict[tuple, OpenAICompatibleClient] = {}
+        self._close_lock = asyncio.Lock()
+        self._lazy_clients = lazy
+        self._client_defaults = dict(defaults or {})
 
-    def _get_or_create_client(
+    def get_or_create(
         self,
         base_url: str,
         api_key: Optional[str],
@@ -77,6 +80,11 @@ class DefaultFramework:
         default_headers: Optional[Dict[str, str]],
         default_query: Optional[Dict[str, Any]],
     ) -> OpenAICompatibleClient:
+        timeout = timeout if timeout is not None else self._client_defaults.get("timeout")
+        connect_timeout = (
+            connect_timeout if connect_timeout is not None else self._client_defaults.get("connect_timeout")
+        )
+        max_retries = max_retries if max_retries is not None else self._client_defaults.get("max_retries")
         key = (
             base_url,
             api_key or "",
@@ -86,7 +94,7 @@ class DefaultFramework:
             json.dumps(default_headers or {}, sort_keys=True, default=str),
             json.dumps(default_query or {}, sort_keys=True, default=str),
         )
-        if key not in self._clients:
+        if key not in self.clients:
             client_kwargs: Dict[str, Any] = {}
             if timeout is not None:
                 client_kwargs["timeout"] = timeout
@@ -98,8 +106,34 @@ class DefaultFramework:
                 client_kwargs["custom_headers"] = default_headers
             if default_query is not None:
                 client_kwargs["custom_query"] = default_query
-            self._clients[key] = OpenAICompatibleClient(base_url=base_url, api_key=api_key, **client_kwargs)
-        return self._clients[key]
+            if self._lazy_clients:
+                client_kwargs["lazy_client"] = True
+            self.clients[key] = OpenAICompatibleClient(base_url=base_url, api_key=api_key, **client_kwargs)
+        return self.clients[key]
+
+    async def aclose(self) -> None:
+        """Release owned transports, retaining unsuccessful releases for retry."""
+        async with self._close_lock:
+            errors = []
+            interruption: Optional[BaseException] = None
+            for client in tuple(self.clients.values()):
+                try:
+                    await client.close()
+                except BaseException as exc:
+                    if isinstance(exc, Exception):
+                        errors.append(exc)
+                    elif interruption is None:
+                        interruption = exc
+            if interruption is not None:
+                raise interruption
+            if errors:
+                raise errors[0]
+
+
+class DefaultFramework:
+    def __init__(self):
+        self._providers: Dict[str, Any] = {}
+        self._pool = _ClientPool()
 
     def create_model(
         self,
@@ -107,16 +141,17 @@ class DefaultFramework:
         provider_name: str,
         model_kwargs: Optional[Dict[str, Any]] = None,
     ) -> LLMModel:
-        kwargs = dict(model_kwargs) if model_kwargs else {}
-        kwargs.pop("mode", None)
+        return self._create_model_with_pool(model_name, provider_name, model_kwargs, pool=self._pool)
 
+    def _create_model_with_pool(
+        self, model_name: str, provider_name: str, model_kwargs: Optional[Dict[str, Any]], *, pool: _ClientPool
+    ) -> LLMModel:
         if provider_name in self._providers:
+            kwargs = dict(model_kwargs or {})
+            kwargs.pop("mode", None)
             return self._providers[provider_name](model=model_name, **kwargs)
-
-        if provider_name in AZURE_PROVIDERS:
-            self._prepare_azure_kwargs(provider_name, kwargs)
-
-        base_url = kwargs.pop("base_url", None) or _resolve_base_url(provider_name)
+        kwargs = self.prepare_builtin_parameters(provider_name, model_kwargs)
+        base_url = kwargs.pop("base_url")
 
         # Sentinel-based pop so the Azure preset can set kwargs["api_key"] = None
         # to suppress Authorization: Bearer without falling back to the env-var
@@ -131,11 +166,21 @@ class DefaultFramework:
         default_headers = kwargs.pop("default_headers", None)
         default_query = kwargs.pop("default_query", None)
 
-        client = self._get_or_create_client(
+        client = pool.get_or_create(
             base_url, api_key, timeout, connect_timeout, max_retries, default_headers, default_query
         )
 
         return OpenAIChatModel(client=client, model=model_name, provider_name=provider_name, **kwargs)
+
+    def prepare_builtin_parameters(self, provider_name: str, model_kwargs: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """Resolve native routing and validate provider settings without creating a client."""
+        kwargs = dict(model_kwargs or {})
+        kwargs.pop("mode", None)
+        if provider_name in AZURE_PROVIDERS:
+            self._prepare_azure_kwargs(provider_name, kwargs)
+        if not kwargs.get("base_url"):
+            kwargs["base_url"] = _resolve_base_url(provider_name)
+        return kwargs
 
     def _prepare_azure_kwargs(self, provider_name: str, kwargs: Dict[str, Any]) -> None:
         """Reshape kwargs in place for the Azure preset.
@@ -219,6 +264,10 @@ class DefaultFramework:
         kwargs["default_query"] = default_query
         kwargs["default_headers"] = default_headers
 
+    def uses_builtin_provider(self, provider_name: str) -> bool:
+        """Whether this provider uses the native OpenAI-compatible construction path."""
+        return type(self) is DefaultFramework and provider_name not in self._providers
+
     def register_provider(self, name: str, provider_cls: Any) -> None:
         self._providers[name] = provider_cls
 
@@ -239,13 +288,13 @@ class DefaultFramework:
         attempted; the first error is re-raised after the pool is cleared.
         """
         errors = []
-        for client in list(self._clients.values()):
+        for client in list(self._pool.clients.values()):
             try:
                 await client.close()
             except Exception as exc:
                 errors.append(exc)
                 log.warning("Error closing pooled client: %s", exc)
-        self._clients.clear()
+        self._pool.clients.clear()
         if errors:
             raise errors[0]
 

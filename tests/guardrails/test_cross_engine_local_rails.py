@@ -35,7 +35,7 @@ import pytest
 from nemoguardrails import Guardrails
 from nemoguardrails.guardrails.compiled_rail import RailCompilationError, RailDependencies, compile_rail
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
-from nemoguardrails.guardrails.model_engine import ModelEngine
+from nemoguardrails.llm.models.openai_chat import OpenAIChatModel
 from nemoguardrails.manifests import RailDirection as SurfaceDirection
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import RailStatus, RailType
@@ -112,9 +112,9 @@ async def _iorails_reply(config_dict: dict, user_text: str, bot_text: str) -> st
         iorails = IORails(RailsConfig.from_content(config=config_dict))
 
     async with iorails:
-        main = iorails.engine_registry._engines["main"]
-        assert isinstance(main, ModelEngine)
-        main.chat_completion = AsyncMock(return_value=LLMResponse(content=bot_text))
+        main = iorails.engine_registry.llms["main"].wrapped_model
+        assert isinstance(main, OpenAIChatModel)
+        main.generate_async = AsyncMock(return_value=LLMResponse(content=bot_text))
 
         response = await iorails.generate_async(messages=[{"role": "user", "content": user_text}])
         return _assistant_content(response)
@@ -171,9 +171,9 @@ async def test_iorails_returns_custom_language_detector_refusal():
             async with guardrails:
                 iorails = guardrails.rails_engine
                 assert isinstance(iorails, IORails)
-                main = iorails.engine_registry._engines["main"]
-                assert isinstance(main, ModelEngine)
-                main.chat_completion = AsyncMock(return_value=LLMResponse(content="unused"))
+                main = iorails.engine_registry.llms["main"].wrapped_model
+                assert isinstance(main, OpenAIChatModel)
+                main.generate_async = AsyncMock(return_value=LLMResponse(content="unused"))
                 response = await guardrails.generate_async(messages=[{"role": "user", "content": "Hola"}])
 
     assert isinstance(response, dict)

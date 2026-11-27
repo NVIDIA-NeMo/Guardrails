@@ -16,7 +16,7 @@
 """Unit tests for iorails module."""
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 import pytest_asyncio
@@ -33,10 +33,10 @@ from nemoguardrails.guardrails.iorails import (
     _rewritten_bot_message,
     _rewritten_user_message,
 )
-from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions, GenerationResponse
 from nemoguardrails.types import LLMResponse, LLMResponseChunk, ToolCall, ToolCallFunction
+from tests.guardrails.model_helpers import mock_model_http_client
 from tests.guardrails.rail_stubs import (
     allow_with_mask_pending,
     bot_message_rewrite,
@@ -70,10 +70,10 @@ async def iorails(rails_config):
 
 
 class TestIORailsInit:
-    """Test IORails wires up EngineRegistry and RailsManager from config."""
+    """Test IORails wires up ModelRuntime and RailsManager from config."""
 
     def test_creates_engine_registry(self, iorails_sync):
-        """EngineRegistry is created during init."""
+        """ModelRuntime is created during init."""
         assert iorails_sync.engine_registry is not None
 
     def test_creates_rails_manager(self, iorails_sync):
@@ -81,7 +81,7 @@ class TestIORailsInit:
         assert iorails_sync.rails_manager is not None
 
     def test_rails_manager_uses_engine_registry(self, iorails_sync):
-        """RailsManager receives the same EngineRegistry instance."""
+        """RailsManager receives the same ModelRuntime instance."""
         assert iorails_sync.rails_manager.engine_registry is iorails_sync.engine_registry
 
 
@@ -109,6 +109,7 @@ async def iorails_with_header_config():
     parameters.default_headers, for end-to-end per-model header assertions."""
     with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
         iorails = IORails(RailsConfig.from_content(config=DEFAULT_HEADERS_CONFIG))
+    await iorails.start()
     try:
         yield iorails
     finally:
@@ -122,24 +123,16 @@ class TestConfigDefaultHeadersEndToEnd:
 
     @staticmethod
     def _mock_client():
-        """Build a mock aiohttp client whose post() records its call args."""
-        mock_response = AsyncMock()
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.status = 200
-        mock_response.json = AsyncMock(return_value={"choices": [{"message": {"content": "ok"}}]})
-
-        mock_client = AsyncMock()
-        mock_client.post = MagicMock(return_value=mock_response)
-        mock_client.closed = False
-        return mock_client
+        """Use a real HTTPX client with in-memory transport and call inspection."""
+        return mock_model_http_client({"choices": [{"message": {"content": "ok"}}]})
 
     async def _headers_for_model(self, iorails, model_type):
         """Route a model_call for model_type through a mock client and return the sent headers."""
-        engine = iorails.engine_registry._get_engine(model_type, ModelEngine)
-        engine._client = self._mock_client()
-        engine._running = True
+        engine = iorails.engine_registry.llms[model_type].wrapped_model
+        engine._client._client = self._mock_client()
+
         await iorails.engine_registry.model_call(model_type, [{"role": "user", "content": "Hi"}])
-        return engine._client.post.call_args[1]["headers"]
+        return engine._client._client.post.call_args[1]["headers"]
 
     @pytest.mark.asyncio
     async def test_main_llm_carries_only_its_config_headers(self, iorails_with_header_config):
@@ -171,7 +164,7 @@ class TestConfigDefaultHeadersEndToEnd:
 
 class TestConfigDefaultHeadersOverHTTP:
     """True end-to-end: run generate_async over a real loopback HTTP server and
-    assert on the headers the aiohttp client actually put on the wire."""
+    assert on the headers the shared HTTP client actually put on the wire."""
 
     @pytest.mark.asyncio
     async def test_config_default_headers_sent_on_the_wire(self):
@@ -219,7 +212,7 @@ class TestConfigDefaultHeadersOverHTTP:
 
 class TestConfigDefaultQueryOverHTTP:
     """True end-to-end: run generate_async over a real loopback HTTP server and
-    assert on the query string the aiohttp client actually put on the wire."""
+    assert on the query string the shared HTTP client actually put on the wire."""
 
     @staticmethod
     async def _capture_request(default_query: dict) -> dict:
@@ -643,34 +636,20 @@ class TestIORailsStartErrors:
         assert not iorails._running
 
     @pytest.mark.asyncio
-    async def test_start_propagates_model_engine_error(self, iorails):
-        """A ModelEngine failure propagates through EngineRegistry up to IORails.start()."""
-        # Inject the failure at the ModelEngine level, leaving EngineRegistry real
-        engine = iorails.engine_registry._get_engine("content_safety", ModelEngine)
-        engine.start = AsyncMock(side_effect=RuntimeError("NIM endpoint unreachable"))
+    async def test_start_propagates_model_resource_error(self, iorails):
+        """A resource startup failure rolls back its owned scope and preserves the cause."""
+        resources = iorails.engine_registry.resources
+        failure = RuntimeError("NIM endpoint unreachable")
+        resources.start = AsyncMock(side_effect=failure)
+        resources.aclose = AsyncMock(wraps=resources.aclose)
 
-        # Mock the other engines so they don't make real HTTP connections
-        for engine_type, engine in iorails.engine_registry._engines.items():
-            if engine_type != "content_safety":
-                engine.start = AsyncMock()
-                engine.stop = AsyncMock()
-
-        with pytest.raises(RuntimeError, match="Failed to start engine"):
+        with pytest.raises(RuntimeError, match="NIM endpoint unreachable") as caught:
             await iorails.start()
 
+        assert caught.value is failure
         assert not iorails._running
-        assert not iorails.engine_registry._running
-
-        # With fail-fast, only engines that started before the failing one are rolled back.
-        # Engines after it in iteration order never had start() called.
-        engine_names = list(iorails.engine_registry._engines.keys())
-        failed_idx = engine_names.index("content_safety")
-        for i, name in enumerate(engine_names):
-            eng = iorails.engine_registry._engines[name]
-            if i < failed_idx:
-                eng.stop.assert_called_once()
-            elif name != "content_safety":
-                eng.stop.assert_not_called()
+        resources.aclose.assert_awaited_once()
+        assert not iorails._owned_components
 
     @pytest.mark.asyncio
     async def test_start_failure_allows_retry(self, iorails):
@@ -1002,12 +981,12 @@ class TestAutoStart:
     async def test_stream_async_calls_start(self, iorails_input_only):
         """stream_async() calls start() automatically before streaming."""
 
-        async def mock_stream(model_type, messages, **kwargs):
+        async def mock_stream(messages, **kwargs):
             yield LLMResponseChunk(delta_content="hello")
 
         iorails_input_only.engine_registry.start = AsyncMock()
         iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
-        iorails_input_only.engine_registry.stream_model_call = mock_stream
+        iorails_input_only.engine_registry.llms["main"].wrapped_model.stream_async = mock_stream
 
         assert not iorails_input_only._running
         chunks = [
@@ -1022,12 +1001,12 @@ class TestAutoStart:
     async def test_stream_async_start_is_idempotent(self, iorails_input_only):
         """Two stream_async() calls only trigger start() once."""
 
-        async def mock_stream(model_type, messages, **kwargs):
+        async def mock_stream(messages, **kwargs):
             yield LLMResponseChunk(delta_content="hi")
 
         iorails_input_only.engine_registry.start = AsyncMock()
         iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
-        iorails_input_only.engine_registry.stream_model_call = mock_stream
+        iorails_input_only.engine_registry.llms["main"].wrapped_model.stream_async = mock_stream
 
         _ = [chunk async for chunk in iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}])]
         _ = [chunk async for chunk in iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}])]
@@ -1090,7 +1069,7 @@ class TestGenerate:
             iorails.generate(messages=messages)
 
         mock_iorails.assert_called_once()
-        assert mock_iorails.call_args.kwargs == {"_report_usage": False}
+        assert mock_iorails.call_args.kwargs == {"llm": None, "_report_usage": False}
 
     def test_generate_raises_when_called_from_async_loop(self, iorails_sync):
         """generate() raises RuntimeError when called inside a running event loop."""
@@ -1149,21 +1128,9 @@ class TestIORailsConfigToCallURL:
 
         # No rails are configured, so RailsManager short-circuits both checks to
         # is_safe=True and the only outbound HTTP call is the main-model call.
-        # Pre-seed the main engine's HTTP client + _running=True so BaseEngine.start()
-        # short-circuits via its "if running: return" guard — no real aiohttp session
-        # is ever created.
-        mock_response = AsyncMock()
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.status = 200
-        mock_response.json = AsyncMock(return_value={"choices": [{"message": {"content": "ok"}}]})
-
-        mock_client = AsyncMock()
-        mock_client.post = MagicMock(return_value=mock_response)
-        mock_client.closed = False
-
-        main_engine = iorails.engine_registry._engines["main"]
-        main_engine._client = mock_client
-        main_engine._running = True
+        mock_client = _make_mock_http_client("ok")
+        main_engine = iorails.engine_registry.llms["main"].wrapped_model
+        main_engine._client._client = mock_client
 
         try:
             await iorails.generate_async(messages=[{"role": "user", "content": "Hi"}])
@@ -1176,15 +1143,8 @@ class TestIORailsConfigToCallURL:
 
 
 def _make_mock_http_client(content: str):
-    """Build an AsyncMock RetryClient whose .post() returns a chat-completions response with the given content."""
-    mock_response = AsyncMock()
-    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-    mock_response.status = 200
-    mock_response.json = AsyncMock(return_value={"choices": [{"message": {"content": content}}]})
-    mock_client = AsyncMock()
-    mock_client.post = MagicMock(return_value=mock_response)
-    mock_client.closed = False
-    return mock_client
+    """Use the real shared client parser against an in-memory HTTP response."""
+    return mock_model_http_client({"choices": [{"message": {"content": content}}]})
 
 
 class TestGuardrailsConfigToCallURLs:
@@ -1218,21 +1178,19 @@ class TestGuardrailsConfigToCallURLs:
         assert isinstance(guardrails.rails_engine, IORails)
         iorails = guardrails.rails_engine
 
-        main_engine = iorails.engine_registry._get_engine("main", ModelEngine)
-        safety_engine = iorails.engine_registry._get_engine("content_safety", ModelEngine)
+        main_engine = iorails.engine_registry.llms["main"].wrapped_model
+        safety_engine = iorails.engine_registry.llms["content_safety"].wrapped_model
 
-        # Construction-time normalization: both engines' base_url have /v1 stripped.
-        assert main_engine.base_url == "https://main.example.com"
-        assert safety_engine.base_url == "https://safety.example.com"
+        # Shared clients retain the versioned endpoint; request construction adds only the route.
+        assert main_engine.provider_url == "https://main.example.com/v1"
+        assert safety_engine.provider_url == "https://safety.example.com/v1"
 
-        # Pre-seed each engine with a mock HTTP client + _running=True so
-        # BaseEngine.start() short-circuits and no real aiohttp session is created.
+        # Replace transport while retaining shared request construction and parsing.
         main_client = _make_mock_http_client("Hello from main")
         safety_client = _make_mock_http_client(safe_output_json)
-        main_engine._client = main_client
-        main_engine._running = True
-        safety_engine._client = safety_client
-        safety_engine._running = True
+        main_engine._client._client = main_client
+
+        safety_engine._client._client = safety_client
 
         try:
             await guardrails.generate_async(messages=[{"role": "user", "content": "Hi"}])

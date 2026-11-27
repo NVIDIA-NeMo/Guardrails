@@ -26,16 +26,15 @@ ModelEngine's parsing runs for real end to end.
 """
 
 import json
-from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.guardrails_types import RailResult
-from nemoguardrails.guardrails.model_engine import ModelEngine
+from nemoguardrails.guardrails.model_runtime import ModelRuntime
 from nemoguardrails.guardrails.rails_manager import RailsManager
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import RailsConfig
+from tests.guardrails.model_helpers import install_model_http_mock
 from tests.guardrails.tool_helpers import WEATHER_SCHEMA, assert_result_blocked, make_tool_conversation
 
 STACK_CONFIG = {"models": [{"type": "main", "engine": "nim", "model": "meta/llama-3.3-70b-instruct"}]}
@@ -52,10 +51,10 @@ LLM_PARAMS = {"tools": [WEATHER_TOOL], "tool_choice": "auto"}
 MESSAGES = [{"role": "user", "content": "What's the weather in Paris?"}]
 
 
-def _build_stack() -> tuple[EngineRegistry, RailsManager]:
-    """Build an EngineRegistry + RailsManager with both tool rails enabled."""
+def _build_stack() -> tuple[ModelRuntime, RailsManager]:
+    """Build an ModelRuntime + RailsManager with both tool rails enabled."""
     config = RailsConfig.from_content(config=STACK_CONFIG)
-    engine_registry = EngineRegistry(config.models)
+    engine_registry = ModelRuntime(config.models)
     rails_manager = RailsManager(
         engine_registry=engine_registry,
         task_manager=LLMTaskManager(config),
@@ -67,46 +66,14 @@ def _build_stack() -> tuple[EngineRegistry, RailsManager]:
     return engine_registry, rails_manager
 
 
-def _inject_json_response(registry: EngineRegistry, payload: dict) -> None:
-    """Wire the 'main' engine's aiohttp client to return *payload* as JSON."""
-    mock_response = AsyncMock()
-    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-    mock_response.status = 200
-    mock_response.json = AsyncMock(return_value=payload)
-    mock_client = AsyncMock()
-    mock_client.post = MagicMock(return_value=mock_response)
-    mock_client.closed = False
-    engine = registry._get_engine("main", ModelEngine)
-    engine._client = mock_client
-    engine._running = True
+def _inject_json_response(registry: ModelRuntime, payload: dict) -> None:
+    """Replace HTTP transport while retaining canonical response parsing."""
+    install_model_http_mock(registry, "main", payload)
 
 
-def _inject_sse_stream(registry: EngineRegistry, raw_lines: list) -> None:
-    """Wire the 'main' engine's aiohttp client to stream *raw_lines* via readline()."""
-    all_lines = []
-    for raw in raw_lines:
-        for part in raw.split(b"\n"):
-            if part:
-                all_lines.append(part + b"\n")
-    line_iter = iter(all_lines)
-
-    async def _readline():
-        return next(line_iter, b"")
-
-    mock_content = MagicMock()
-    mock_content.readline = _readline
-
-    mock_response = AsyncMock()
-    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-    mock_response.status = 200
-    mock_response.content = mock_content
-
-    mock_client = AsyncMock()
-    mock_client.post = MagicMock(return_value=mock_response)
-    mock_client.closed = False
-    engine = registry._get_engine("main", ModelEngine)
-    engine._client = mock_client
-    engine._running = True
+def _inject_sse_stream(registry: ModelRuntime, raw_lines: list) -> None:
+    """Replace HTTP transport while retaining canonical SSE parsing."""
+    install_model_http_mock(registry, "main", raw_lines=raw_lines)
 
 
 def _tool_call_payload(name: str, arguments_json: str, call_id: str = "call_1") -> dict:
@@ -194,9 +161,12 @@ async def _drive_stream_call(sse_lines: list) -> RailResult:
     registry, manager = _build_stack()
     _inject_sse_stream(registry, sse_lines)
     collected = []
-    async for chunk in registry.stream_model_call("main", MESSAGES, **LLM_PARAMS):
+
+    async def consume(chunk):
         if chunk.delta_tool_calls:
             collected.extend(chunk.delta_tool_calls)
+
+    await registry.stream_model_call("main", MESSAGES, chunk_consumer=consume, **LLM_PARAMS)
     assert collected, "expected assembled tool calls from the stream"
     return await manager.are_tool_calls_safe(collected, LLM_PARAMS)
 

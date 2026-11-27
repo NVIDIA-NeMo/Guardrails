@@ -57,7 +57,7 @@ If startup fails or is cancelled, the core attempts to roll back the model clien
 Each rollback attempt has a cooperative five-second timeout and is shielded from enclosing AnyIO cancellation scopes.
 Blocking cleanup, cleanup that suppresses cancellation, and repeated direct task cancellation can prevent rollback from completing.
 The core retains unfinished cleanup so you can call `shutdown()` again, even when `startup()` did not succeed.
-Failed or interrupted shutdown does not mark outstanding model-client or worker cleanup as complete; another shutdown call retries those resources without closing successfully released resources again.
+A later shutdown retries unfinished cleanup when the resource can still be closed. If HTTPX has already marked a model client closed and its transport cleanup failed, shutdown and restart continue to report incomplete cleanup. Recreate the runtime before using it again.
 Stop admitting application requests before shutdown, and do not treat a timeout or a rollback warning as confirmation that all resources were released.
 
 ### Choosing an Engine

@@ -30,9 +30,8 @@ from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.guardrails.actions.tool_call_action import ToolCallRailAction
 from nemoguardrails.guardrails.actions.tool_result_action import ToolResultRailAction
 from nemoguardrails.guardrails.compiled_rail import RailCompilationError
-from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.guardrails_types import RailCallRecord, RailDirection, RailResult, serialize_prompt
-from nemoguardrails.guardrails.model_engine import ModelEngine
+from nemoguardrails.guardrails.model_runtime import ModelRuntime
 from nemoguardrails.guardrails.rails_manager import (
     PER_TOOL_RAILS_MAX_CONCURRENCY,
     RailsManager,
@@ -47,6 +46,7 @@ from nemoguardrails.guardrails.rails_manager import (
     _transforms_first,
 )
 from nemoguardrails.http.retry import RetryingHTTPClient
+from nemoguardrails.llm.models.openai_chat import OpenAIChatModel
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.manifests import RailDirection as SurfaceDirection
@@ -110,10 +110,10 @@ UNSAFE_OUTPUT_JSON = json.dumps(
 MESSAGES = [{"role": "user", "content": "hello"}]
 
 
-def _make_rails_manager(config: RailsConfig, engine_registry: EngineRegistry | None = None) -> RailsManager:
+def _make_rails_manager(config: RailsConfig, engine_registry: ModelRuntime | None = None) -> RailsManager:
     """Build a RailsManager from a RailsConfig, extracting the narrow params."""
     if engine_registry is None:
-        engine_registry = EngineRegistry(config.models)
+        engine_registry = ModelRuntime(config.models)
     return RailsManager(
         engine_registry=engine_registry,
         task_manager=LLMTaskManager(config),
@@ -131,7 +131,7 @@ def content_safety_rails_config():
 
 @pytest.fixture
 def content_safety_engine_registry(content_safety_rails_config):
-    return EngineRegistry(content_safety_rails_config.models)
+    return ModelRuntime(content_safety_rails_config.models)
 
 
 @pytest.fixture
@@ -146,7 +146,7 @@ def nemoguards_rails_config():
 
 @pytest.fixture
 def nemoguards_engine_registry(nemoguards_rails_config):
-    return EngineRegistry(nemoguards_rails_config.models)
+    return ModelRuntime(nemoguards_rails_config.models)
 
 
 @pytest.fixture
@@ -161,7 +161,7 @@ def topic_safety_rails_config():
 
 @pytest.fixture
 def topic_safety_engine_registry(topic_safety_rails_config):
-    return EngineRegistry(topic_safety_rails_config.models)
+    return ModelRuntime(topic_safety_rails_config.models)
 
 
 @pytest.fixture
@@ -737,7 +737,7 @@ def _tool_rails_manager(*, tool_call_flows=None, tool_result_flows=None) -> Rail
     """Build a RailsManager with only tool rails wired (no LLM input/output flows)."""
     config = RailsConfig.from_content(config={"models": []})
     return RailsManager(
-        engine_registry=EngineRegistry(config.models),
+        engine_registry=ModelRuntime(config.models),
         task_manager=LLMTaskManager(config),
         input_flows=[],
         output_flows=[],
@@ -803,7 +803,7 @@ def _tool_rails_manager_with_main(
         config = RailsConfig.from_content(
             config={"models": [{"type": "main", "engine": "nim", "model": "meta/llama-3.3-70b-instruct"}]}
         )
-        engine_registry = EngineRegistry(config.models)
+        engine_registry = ModelRuntime(config.models)
     return RailsManager(
         engine_registry=engine_registry,
         task_manager=LLMTaskManager(config),
@@ -988,8 +988,11 @@ class TestRailsManagerToolResults:
         """An exchange extraction error blocks with a fixed reason and an ``extraction_failed`` violation."""
         mgr = _tool_rails_manager_with_main(tool_result_flows=["tool result validation"])
 
-        mgr.engine_registry.extract_tool_exchanges = MagicMock(side_effect=RuntimeError(_SECRET_VALUE))
-        result = await mgr.are_tool_results_safe(make_tool_conversation())
+        with patch(
+            "nemoguardrails.guardrails.rails_manager.extract_tool_exchanges",
+            MagicMock(side_effect=RuntimeError(_SECRET_VALUE)),
+        ):
+            result = await mgr.are_tool_results_safe(make_tool_conversation())
         assert_result_blocked(result, "tool exchange extraction failed")
         assert result.tool_violations == (result_violation("extraction_failed", "tool exchange extraction failed"),)
 
@@ -1296,7 +1299,7 @@ def _capture_tool_rails_manager():
         config = RailsConfig.from_content(
             config={"models": [{"type": "main", "engine": "nim", "model": "meta/llama-3.3-70b-instruct"}]}
         )
-        engine_registry = EngineRegistry(config.models)
+        engine_registry = ModelRuntime(config.models)
     manager = RailsManager(
         engine_registry=engine_registry,
         task_manager=LLMTaskManager(config),
@@ -1757,9 +1760,8 @@ class TestToolRailTriggeredRail:
         def _boom(*args, **kwargs):
             raise RuntimeError("extract boom")
 
-        mgr.engine_registry.extract_tool_exchanges = _boom
-
-        result = await mgr.are_tool_results_safe(make_tool_conversation())
+        with patch("nemoguardrails.guardrails.rails_manager.extract_tool_exchanges", _boom):
+            result = await mgr.are_tool_results_safe(make_tool_conversation())
 
         assert result.is_safe is False
         assert result.triggered_rail is None
@@ -2498,7 +2500,7 @@ def _content_safety_config_without_max_tokens() -> dict:
 
 def _mocked_reply(reply: str):
     """Patch the transport both the old and new rail paths bottom out in."""
-    return patch.object(ModelEngine, "chat_completion", AsyncMock(return_value=LLMResponse(content=reply)))
+    return patch.object(OpenAIChatModel, "generate_async", AsyncMock(return_value=LLMResponse(content=reply)))
 
 
 class TestLibraryActionContract:
@@ -2536,7 +2538,7 @@ class TestLibraryActionContract:
         manager = _make_rails_manager(RailsConfig.from_content(config=_content_safety_config_without_max_tokens()))
         chat = AsyncMock(return_value=LLMResponse(content=SAFE_INPUT_JSON))
 
-        with patch.object(ModelEngine, "chat_completion", chat):
+        with patch.object(OpenAIChatModel, "generate_async", chat):
             await manager.is_input_safe(MESSAGES)
 
         assert chat.await_args.kwargs["max_tokens"] == 1024

@@ -80,8 +80,6 @@ class HTTPResponse:
 
 
 class BaseClient:
-    _client: httpx.AsyncClient
-
     def __init__(
         self,
         base_url: str,
@@ -92,6 +90,7 @@ class BaseClient:
         custom_headers: Optional[Dict[str, str]] = None,
         custom_query: Optional[Dict[str, Any]] = None,
         http_client: Optional[httpx.AsyncClient] = None,
+        lazy_client: bool = False,
     ):
         """Initialize the HTTP-backed LLM client.
 
@@ -124,10 +123,25 @@ class BaseClient:
             connect_timeout if connect_timeout is not None else cast(Optional[float], DEFAULT_TIMEOUT.connect)
         )
         self._owns_client = http_client is None
-        self._client = http_client or httpx.AsyncClient(
-            timeout=httpx.Timeout(_timeout, connect=_connect_timeout),
-            limits=DEFAULT_CONNECTION_LIMITS,
-        )
+        self._lazy_client = lazy_client
+        self._transport_close_failed = False
+        self._timeout = httpx.Timeout(_timeout, connect=_connect_timeout)
+        self._http_client = http_client
+        if self._http_client is None and not lazy_client:
+            self._http_client = self._new_http_client()
+
+    def _new_http_client(self) -> httpx.AsyncClient:
+        return httpx.AsyncClient(timeout=self._timeout, limits=DEFAULT_CONNECTION_LIMITS)
+
+    @property
+    def _client(self) -> httpx.AsyncClient:
+        if self._http_client is None:
+            self._http_client = self._new_http_client()
+        return self._http_client
+
+    @_client.setter
+    def _client(self, client: httpx.AsyncClient) -> None:
+        self._http_client = client
 
     @property
     def provider_name(self) -> Optional[str]:
@@ -185,6 +199,7 @@ class BaseClient:
         await asyncio.sleep(delay)
 
     async def _apost(self, path: str, payload: Dict[str, Any]) -> HTTPResponse:
+        log.info("HTTP POST model=%s", payload.get("model", "unknown"))
         retries_remaining = self._max_retries
         retries_attempted = 0
         ctx = self._error_context()
@@ -242,6 +257,7 @@ class BaseClient:
             return HTTPResponse(body=data, headers=dict(response.headers), status_code=response.status_code)
 
     async def _apost_stream(self, path: str, payload: Dict[str, Any]) -> AsyncGenerator[HTTPResponse, None]:
+        log.info("HTTP POST model=%s (stream)", payload.get("model", "unknown"))
         retries_remaining = self._max_retries
         retries_attempted = 0
         ctx = self._error_context()
@@ -332,11 +348,25 @@ class BaseClient:
         raise_for_sse_error(parsed, headers, ctx)
 
     def is_closed(self) -> bool:
-        return self._client.is_closed
+        return self._http_client is None or self._http_client.is_closed
 
     async def close(self) -> None:
-        if self._owns_client:
-            await self._client.aclose()
+        if not self._owns_client or self._http_client is None:
+            return
+        if self._transport_close_failed:
+            raise RuntimeError(
+                "Model HTTP transport cleanup is incomplete. Recreate the runtime before using it again."
+            )
+
+        try:
+            await self._http_client.aclose()
+        except BaseException:
+            # HTTPX marks the client closed before awaiting transport cleanup.
+            # Once marked closed, another aclose() would silently skip the transport.
+            self._transport_close_failed = self._lazy_client and self._http_client.is_closed
+            raise
+        if self._lazy_client:
+            self._http_client = None
 
     async def __aenter__(self):
         return self

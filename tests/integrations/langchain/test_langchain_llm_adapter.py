@@ -18,7 +18,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, SystemMessage, ToolMessage
 
-from nemoguardrails.exceptions import LLMCallException
+from nemoguardrails.exceptions import LLMCallException, LLMResponseValidationError
 from nemoguardrails.integrations.langchain.llm_adapter import (
     LangChainFramework,
     LangChainLLMAdapter,
@@ -135,7 +135,7 @@ async def test_llm_call_stop_tokens_passed_without_llm_params(llm_params):
     mock_llm = MagicMock()
     mock_llm.model_name = "gpt-4"
     bound_llm = AsyncMock()
-    bound_llm.ainvoke.return_value = MagicMock(content="response")
+    bound_llm.ainvoke.return_value = AIMessage(content="response")
     mock_llm.bind.return_value = bound_llm
 
     wrapped = LangChainLLMAdapter(mock_llm)
@@ -181,7 +181,7 @@ async def test_llm_call_kwargs_flow_through_to_generate():
     mock_llm = MagicMock()
     mock_llm.model_name = "gpt-4"
     bound_llm = AsyncMock()
-    bound_llm.ainvoke.return_value = MagicMock(content="response")
+    bound_llm.ainvoke.return_value = AIMessage(content="response")
     mock_llm.bind.return_value = bound_llm
 
     wrapped = LangChainLLMAdapter(mock_llm)
@@ -377,11 +377,8 @@ class TestLangChainLLMAdapter:
         assert terminal.delta_tool_calls[0].function.arguments == {"q": "weather"}
 
     @pytest.mark.asyncio
-    async def test_stream_truncated_tool_call_preserves_length_finish_reason(self):
-        # A tool call cut off by the token limit ends with finish_reason "length"
-        # and incomplete JSON args. It must NOT be relabeled "tool_calls" (which
-        # would mask the truncation behind an empty-args call). finish_reason stays
-        # "length" and no tool calls are surfaced.
+    async def test_stream_truncated_tool_call_fails_validation(self):
+        # Incomplete generated arguments must not silently disappear at a token limit.
         chunks = [
             AIMessageChunk(
                 content="",
@@ -398,11 +395,8 @@ class TestLangChainLLMAdapter:
         mock_llm.astream = mock_astream
         adapter = LangChainLLMAdapter(mock_llm)
 
-        results = [chunk async for chunk in adapter.stream_async("find weather")]
-
-        terminal = results[-1]
-        assert terminal.finish_reason == "length"
-        assert terminal.delta_tool_calls is None
+        with pytest.raises(LLMResponseValidationError, match="valid JSON object"):
+            _ = [chunk async for chunk in adapter.stream_async("find weather")]
 
     @pytest.mark.asyncio
     async def test_generate_passes_kwargs_via_bind(self):
@@ -1007,7 +1001,7 @@ class TestStreamingToolCalls:
         assert final.delta_tool_calls[1].function.arguments == {"city": "Paris"}
 
     @pytest.mark.asyncio
-    async def test_invalid_json_falls_back_to_empty_dict(self):
+    async def test_invalid_json_fails_validation(self):
         adapter = _make_adapter_with_chunks(
             [
                 _make_lc_chunk(tool_call_chunks=[{"index": 0, "id": "call_x", "name": "broken", "args": ""}]),
@@ -1016,9 +1010,8 @@ class TestStreamingToolCalls:
             ]
         )
 
-        results = await _collect_stream(adapter)
-
-        assert results[-1].delta_tool_calls[0].function.arguments == {}
+        with pytest.raises(LLMResponseValidationError, match="valid JSON object"):
+            await _collect_stream(adapter)
 
     @pytest.mark.asyncio
     async def test_text_only_stream_unaffected(self):
@@ -1111,3 +1104,72 @@ def test_generic_langchain_message_keeps_parsed_and_invalid_calls():
     converted = chatmessage_to_langchain_message(history)
     assert converted.tool_calls[0]["args"] == {"city": "Paris"}
     assert [call["args"] for call in converted.invalid_tool_calls] == ["{broken", "[1]"]
+
+
+@pytest.mark.parametrize("arguments", ["{broken", "[1]", "null"])
+def test_langchain_generated_invalid_calls_fail_validation(arguments):
+    message = AIMessage(content="", invalid_tool_calls=[{"id": "bad", "name": "weather", "args": arguments}])
+    with pytest.raises(LLMResponseValidationError, match="valid JSON object"):
+        _langchain_response_to_llm_response(message)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("arguments", ["[1]", "null"])
+async def test_langchain_generated_nonobject_stream_fails_validation(arguments):
+    adapter = _make_adapter_with_chunks(
+        [
+            _make_lc_chunk(tool_call_chunks=[{"index": 0, "id": "bad", "name": "weather", "args": arguments}]),
+            _make_lc_chunk(response_metadata={"finish_reason": "tool_calls"}),
+        ]
+    )
+    with pytest.raises(LLMResponseValidationError, match="valid JSON object"):
+        await _collect_stream(adapter)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("finish_reason", [None, "tool_calls", "stop", "length", "content_filter"])
+@pytest.mark.parametrize("arguments", ["{broken", "[1]", "null"])
+async def test_langchain_rejects_malformed_calls_at_every_stream_end(finish_reason, arguments):
+    chunks = [_make_lc_chunk(tool_call_chunks=[{"index": 0, "id": "bad", "name": "weather", "args": arguments}])]
+    if finish_reason is not None:
+        chunks.append(_make_lc_chunk(response_metadata={"finish_reason": finish_reason}))
+    with pytest.raises(LLMResponseValidationError, match="valid JSON object"):
+        await _collect_stream(_make_adapter_with_chunks(chunks))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("finish_reason", [None, "tool_calls", "stop", "length"])
+async def test_langchain_finalizes_valid_calls_once(finish_reason):
+    chunks = [
+        _make_lc_chunk(tool_call_chunks=[{"index": 0, "id": "good", "name": "weather", "args": '{"city": "Paris"}'}])
+    ]
+    if finish_reason is not None:
+        chunks.append(_make_lc_chunk(response_metadata={"finish_reason": finish_reason}))
+        chunks.append(_make_lc_chunk(usage_metadata={"input_tokens": 1, "output_tokens": 2, "total_tokens": 3}))
+    results = await _collect_stream(_make_adapter_with_chunks(chunks))
+    calls = [call for chunk in results for call in chunk.delta_tool_calls or []]
+    assert len(calls) == 1
+    assert calls[0].function.arguments == {"city": "Paris"}
+    if finish_reason == "length":
+        assert results[1].finish_reason == "length"
+
+
+@pytest.mark.asyncio
+async def test_langchain_closes_provider_stream_on_invalid_generated_call():
+    closed = False
+
+    async def stream(*args, **kwargs):
+        nonlocal closed
+        try:
+            yield AIMessageChunk(
+                content="", tool_call_chunks=[{"index": 0, "id": "bad", "name": "weather", "args": "{broken"}]
+            )
+            yield AIMessageChunk(content="", response_metadata={"finish_reason": "tool_calls"})
+        finally:
+            closed = True
+
+    llm = MagicMock()
+    llm.astream = stream
+    with pytest.raises(LLMResponseValidationError, match="valid JSON object"):
+        await _collect_stream(LangChainLLMAdapter(llm))
+    assert closed

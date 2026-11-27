@@ -31,7 +31,7 @@ helpers in :mod:`nemoguardrails.actions.llm.utils`.
 
 import logging
 import re
-from typing import TYPE_CHECKING, Any, Dict, List, NoReturn, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, List, NoReturn, Optional, Union, cast
 
 from nemoguardrails.context import (
     llm_call_info_var,
@@ -79,7 +79,11 @@ async def llm_call(
     stop: Optional[List[str]] = None,
     llm_params: Optional[dict] = None,
     streaming_handler: Optional["StreamingHandler"] = None,
+    *,
+    chunk_consumer: Optional[Callable[[LLMResponseChunk], Awaitable[None]]] = None,
 ) -> LLMResponse:
+    if streaming_handler is not None and chunk_consumer is not None:
+        raise ValueError("streaming_handler and chunk_consumer are mutually exclusive")
     if llm is None:
         raise LLMCallException(ValueError("No LLM provided to llm_call()"))
 
@@ -98,8 +102,10 @@ async def llm_call(
     call_params = dict(llm_params or {})
     stop = call_params.pop("stop", stop)
 
-    if streaming_handler:
-        return await _stream_llm_call(model, chat_prompt, streaming_handler, stop, call_params)
+    if streaming_handler is not None or chunk_consumer is not None:
+        return await _stream_llm_call(
+            model, chat_prompt, streaming_handler, stop, call_params, chunk_consumer=chunk_consumer
+        )
 
     try:
         response: LLMResponse = await model.generate_async(chat_prompt, stop=stop, **call_params)
@@ -118,12 +124,24 @@ async def llm_call(
 async def _stream_llm_call(
     model: LLMModel,
     prompt: Union[str, List[ChatMessage]],
-    handler: "StreamingHandler",
+    handler: Optional["StreamingHandler"],
     stop: Optional[List[str]],
     llm_params: Optional[dict] = None,
+    *,
+    chunk_consumer: Optional[Callable[[LLMResponseChunk], Awaitable[None]]] = None,
 ) -> LLMResponse:
-    handler.stop = [stop] if isinstance(stop, str) else stop or []
-    streaming_handler_metadata: Dict[str, Any] = {}
+    """Deliver a single provider stream and retain its complete terminal response.
+
+    The handler adapter retains its stop-sequence filtering. A typed consumer
+    receives every provider chunk, including metadata-only chunks, and owns any
+    publication or filtering decisions. Typed consumer failures propagate unchanged;
+    handler failures retain the domain wrapper used by generation error handling.
+    """
+    if handler is not None and chunk_consumer is not None:
+        raise ValueError("streaming_handler and chunk_consumer are mutually exclusive")
+    if handler is not None:
+        handler.stop = [stop] if isinstance(stop, str) else stop or []
+    accumulated_content: List[str] = []
     accumulated_provider_metadata: Dict[str, Any] = {}
     accumulated_reasoning: List[str] = []
     tool_calls = None
@@ -133,11 +151,24 @@ async def _stream_llm_call(
     finish_reason: Optional[str] = None
     request_id: Optional[str] = None
     usage: Optional[UsageInfo] = None
+    stream = None
+    failed = False
 
     try:
-        async for chunk in model.stream_async(prompt, stop=stop, **(llm_params or {})):
-            content = chunk.delta_content or ""
+        try:
+            stream = model.stream_async(prompt, stop=stop, **(llm_params or {}))
+        except Exception as exc:
+            _raise_llm_call_exception(exc, model)
+        while True:
+            try:
+                chunk = await anext(stream)
+            except StopAsyncIteration:
+                break
+            except Exception as exc:
+                _raise_llm_call_exception(exc, model)
 
+            content = chunk.delta_content or ""
+            accumulated_content.append(content)
             if chunk.delta_reasoning:
                 accumulated_reasoning.append(chunk.delta_reasoning)
             if chunk.tool_call_deltas:
@@ -155,44 +186,31 @@ async def _stream_llm_call(
             if chunk.provider_metadata:
                 accumulated_provider_metadata.update(chunk.provider_metadata)
 
-            chunk_metadata = _extract_chunk_metadata(chunk)
-            if chunk_metadata:
-                streaming_handler_metadata.update(chunk_metadata)
+            if chunk_consumer is not None:
+                await chunk_consumer(chunk)
+            elif handler is not None:
+                try:
+                    await handler.push_chunk(content, stream_chunk_metadata(chunk))
+                    if streaming_tool_deltas and (chunk.tool_call_deltas or chunk.finish_reason):
+                        await handler.push_chunk(
+                            ToolCallDeltaChunk(
+                                tool_calls=chunk.tool_call_deltas or [], finish_reason=chunk.finish_reason
+                            )
+                        )
+                    elif chunk.delta_tool_calls and not streaming_tool_deltas:
+                        await handler.push_chunk(ToolCallChunk(tool_calls=chunk.delta_tool_calls))
+                except Exception as exc:
+                    _raise_llm_call_exception(exc, model)
 
-            await handler.push_chunk(content, chunk_metadata)
-            if streaming_tool_deltas and (chunk.tool_call_deltas or chunk.finish_reason):
-                await handler.push_chunk(
-                    ToolCallDeltaChunk(tool_calls=chunk.tool_call_deltas or [], finish_reason=chunk.finish_reason)
-                )
-            elif chunk.delta_tool_calls and not streaming_tool_deltas:
-                await handler.push_chunk(ToolCallChunk(tool_calls=chunk.delta_tool_calls))
-
-        llm_response_metadata_var.set(accumulated_provider_metadata or None)
-
-        await handler.finish()
-
-        llm_call_info = llm_call_info_var.get()
-        if llm_call_info:
-            llm_call_info.completion = handler.completion
-
-        if usage:
-            fake_chunk = LLMResponseChunk(usage=usage)
-            _update_token_stats_from_chunk(fake_chunk)
-
-        if tool_calls:
-            tool_calls_var.set([tc.to_dict() for tc in tool_calls])
-        else:
-            tool_calls_var.set(None)
-
-        reasoning_content = "".join(accumulated_reasoning) if accumulated_reasoning else None
-        # TODO: call _extract_and_remove_think_tags on the completed response
-        # to handle models that stream reasoning via <think> tags in content
-        # rather than via delta_reasoning. Pre-existing gap, not introduced here.
-        reasoning_trace_var.set(reasoning_content)
+        if handler is not None:
+            try:
+                await handler.finish()
+            except Exception as exc:
+                _raise_llm_call_exception(exc, model)
 
         response = LLMResponse(
-            content=handler.completion,
-            reasoning=reasoning_content,
+            content=handler.completion if handler is not None else "".join(accumulated_content),
+            reasoning="".join(accumulated_reasoning) or None,
             tool_calls=tool_calls,
             model=model_name,
             finish_reason=finish_reason,
@@ -200,15 +218,31 @@ async def _stream_llm_call(
             usage=usage,
             provider_metadata=accumulated_provider_metadata or None,
         )
-        # Streaming returns early from llm_call, so this must happen here too.
+        # Keep the handler's streamed text unchanged; extracting think tags only
+        # after delivery would make the returned content disagree with the stream.
+        reasoning_trace_var.set(response.reasoning)
+        _log_completion(response)
+        if usage:
+            _update_token_stats_from_chunk(LLMResponseChunk(usage=usage))
+        _store_tool_calls(response)
         _store_request_id(response)
+        _store_response_metadata(response)
         return response
+    except BaseException:
+        failed = True
+        raise
+    finally:
+        close = getattr(stream, "aclose", None)
+        if close is not None:
+            try:
+                await close()
+            except Exception as exc:
+                if not failed:
+                    _raise_llm_call_exception(exc, model)
+                logger.warning("Failed to close an interrupted model stream", exc_info=True)
 
-    except Exception as e:
-        _raise_llm_call_exception(e, model)
 
-
-def _extract_chunk_metadata(chunk: LLMResponseChunk) -> Optional[Dict[str, Any]]:
+def stream_chunk_metadata(chunk: LLMResponseChunk) -> Optional[Dict[str, Any]]:
     # This feeds handler.push_chunk() for the StreamingHandler consumer path
     # (API responses, output rails). Separate from the field accumulation in
     # _stream_llm_call which builds the returned LLMResponse for the pipeline.

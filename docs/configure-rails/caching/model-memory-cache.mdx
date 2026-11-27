@@ -14,7 +14,7 @@ content:
 
 The NVIDIA NeMo Guardrails library supports an in-memory cache that avoids making LLM calls for repeated prompts. The cache stores user prompts and their corresponding LLM responses. Before making an LLM call, the library checks if the prompt already exists in the cache. If found, the stored response is returned instead of calling the LLM, which improves latency.
 
-In-memory caches are supported for all NemoGuard models: [Content-Safety](https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-content-safety), [Topic-Control](https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-topic-control), and [Jailbreak Detection](https://build.nvidia.com/nvidia/nemoguard-jailbreak-detect). You can configure each model independently.
+In-memory caches are supported for all NemoGuard models: [Content-Safety](https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-content-safety), [Topic-Control](https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-topic-control), and [Jailbreak Detection](https://build.nvidia.com/nvidia/nemoguard-jailbreak-detect). You can configure each model independently on both LLMRails and IORails. Each runtime owns its cache instances, even when multiple runtimes share a `RailsConfig`. Main-model generation and embedding models are excluded from this cache.
 
 The cache uses exact matching (after normalizing whitespace) on LLM prompts with a Least-Frequently-Used (LFU) algorithm for cache evictions. Whitespace normalization collapses consecutive whitespace characters into a single space and trims leading/trailing whitespace.
 
@@ -150,8 +150,10 @@ The LFU algorithm ensures that the most frequently accessed cache entries remain
 
 The NVIDIA NeMo Guardrails library supports OTEL telemetry to trace client requests through the library and any calls to LLMs or APIs. The cache operation is reflected in these traces:
 
-- **Cache hits** have a far shorter duration with no LLM call
-- **Cache misses** include an LLM call
+- **Cache hits** avoid the provider call. On IORails, they emit no model-client span or model-client token metric.
+- **Cache misses** include a provider call and its configured instrumentation.
+
+Generation logs can include a cached logical call record with `from_cache=True` and the stored response's token counts. Those counts are not new provider usage. LLMRails can reconstruct spans for cached logical calls from its interaction log; IORails records provider spans only when the model is invoked.
 
 This OTEL telemetry is suited for operational dashboards.
 
@@ -180,8 +182,8 @@ The following list describes the metrics included in the cache statistics:
 ## Horizontal Scaling and Caching
 
 The cache is implemented in-memory by the NVIDIA NeMo Guardrails library.
-If a Guardrails library instance is restarted, the contents of the cache are lost.
-This causes high miss rates due to compulsory or cold-start cache misses.
+Constructing a new Guardrails library instance starts with an empty cache and initially has cold-start cache misses.
+Stopping and starting the same instance closes and reopens owned model transports while retaining its in-memory cache.
 This section describes techniques that are out of scope for the library but can improve caching performance in a horizontally scaled backend.
 
 You can operate the library as a horizontally scalable service to meet availability and performance Service Level Objectives (SLOs).

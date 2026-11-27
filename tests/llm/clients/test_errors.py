@@ -16,7 +16,6 @@
 import pytest
 
 from nemoguardrails.exceptions import LLMBadRequestError, LLMCallException, LLMClientError
-from nemoguardrails.guardrails.model_engine import ModelEngineError
 from nemoguardrails.llm.clients._errors import _redact_secrets, as_client_error, client_facing_message
 
 
@@ -36,21 +35,21 @@ class TestAsClientError:
         assert as_client_error(LLMCallException(error, status=400)) is error
 
     def test_two_wrappers_are_unwrapped(self):
-        """The IORails library-rail path nests twice: LLMCallException -> ModelEngineError -> client error.
+        """Nested invocation wrappers preserve the classified client error.
 
         Stopping at the first link would null the provider's code and param for every rail
         that reaches its model through ``llm_call``.
         """
         error = LLMBadRequestError(400, "bad request")
-        engine_error = ModelEngineError("HTTP 400 from model 'm'", model_name="m", status=400, inner_exception=error)
+        invocation_error = LLMCallException(error, detail="HTTP 400 from model 'm'", status=400)
 
-        assert as_client_error(LLMCallException(engine_error, status=400)) is error
+        assert as_client_error(LLMCallException(invocation_error, status=400)) is error
 
     def test_wrapper_without_a_client_error_resolves_to_none(self):
         """A transport failure that could not be classified carries no client error."""
-        engine_error = ModelEngineError("something failed", model_name="m")
+        invocation_error = LLMCallException("something failed", detail="Model invocation failed")
 
-        assert as_client_error(LLMCallException(engine_error)) is None
+        assert as_client_error(LLMCallException(invocation_error)) is None
 
     def test_unrelated_exception_resolves_to_none(self):
         """An exception with no inner_exception attribute at all is not a client error."""
@@ -74,11 +73,9 @@ class TestAsClientError:
     def test_message_prefers_the_nested_client_error(self):
         """Through two wrappers the caller still sees the provider's message, not str(exc)."""
         error = LLMClientError(404, "model not found", model_name="internal-model")
-        engine_error = ModelEngineError(
-            "HTTP 404 from model 'internal-model'", model_name="internal-model", status=404, inner_exception=error
-        )
+        invocation_error = LLMCallException(error, detail="HTTP 404 from model 'internal-model'", status=404)
 
-        message = client_facing_message(LLMCallException(engine_error, status=404))
+        message = client_facing_message(LLMCallException(invocation_error, status=404))
 
         assert message == "model not found"
         assert "internal-model" not in message

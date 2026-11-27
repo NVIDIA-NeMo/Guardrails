@@ -26,7 +26,6 @@ from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.guardrails.actions.tool_call_action import ToolCallRailAction
 from nemoguardrails.guardrails.actions.tool_result_action import ToolResultRailAction
 from nemoguardrails.guardrails.compiled_rail import CompiledRail, RailDependencies, compile_rail
-from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.guardrails_types import (
     RailCallRecord,
     RailDirection,
@@ -37,6 +36,7 @@ from nemoguardrails.guardrails.guardrails_types import (
     last_user_content,
     rewrite_user_message,
 )
+from nemoguardrails.guardrails.model_runtime import ModelRuntime
 from nemoguardrails.guardrails.telemetry import mark_rail_stop, rail_span, set_rail_content
 from nemoguardrails.guardrails.tool_parsing import extract_latest_tool_calls, extract_tool_exchanges, parse_tools
 from nemoguardrails.guardrails.tool_rail_action import ToolRailAction, reported_violations, violations_outcome
@@ -347,7 +347,7 @@ class RailsManager:
     def __init__(
         self,
         *,
-        engine_registry: EngineRegistry,
+        engine_registry: ModelRuntime,
         task_manager: LLMTaskManager,
         input_flows: list[str],
         output_flows: list[str],
@@ -485,6 +485,7 @@ class RailsManager:
         """Bundle the collaborators a compiled rail's action may declare as parameters."""
         return RailDependencies(
             llms=self.engine_registry.llms,
+            model_caches=self.engine_registry.model_caches,
             llm_task_manager=self.task_manager,
             config=self.task_manager.config,
             tracer=self._tracer,
@@ -566,8 +567,8 @@ class RailsManager:
 
         The tool-call counterpart to :meth:`is_output_safe`: takes the model's output
         (``tool_calls``) plus the request's declared tools (``llm_params``) and returns
-        a ``RailResult``. ``model_type`` names the engine whose wire format the tools are
-        in; ``None`` reads them as Chat Completions, as a check does, with no model.
+        a ``RailResult``. ``model_type`` selects the model whose configured tools supply
+        defaults. A model-free check uses only the request tools.
         """
         if not tool_calls:
             return RailResult.allow()
@@ -630,7 +631,7 @@ class RailsManager:
         return RailResult.allow(records=combined_records)
 
     def _offered_tools(self, model_type: Optional[str], llm_params: Optional[dict]) -> Toolset:
-        """The tools *llm_params* offers, in *model_type*'s wire format, or as Chat Completions when it's None."""
+        """Merge request tools with the selected model defaults for generation."""
         if model_type is not None:
             return self.engine_registry.parse_tools(model_type, llm_params)
         return parse_tools(llm_params)
@@ -710,7 +711,6 @@ class RailsManager:
         messages: list[dict],
         *,
         enabled: Union[bool, list[str]] = True,
-        model_type: Optional[str] = "main",
     ) -> RailResult:
         """Validate incoming tool results (INPUT-direction tool rail).
 
@@ -718,9 +718,7 @@ class RailsManager:
         ``messages`` and returns a ``RailResult``. Groups the conversation into per-turn
         ``(calls, results)`` exchanges via the engine adapter and validates each result
         against its own turn's calls, so call ids reused across turns (spec-allowed) are
-        not flagged as ambiguous duplicates. ``model_type`` names the engine whose wire
-        format the messages are in; ``None`` reads them as Chat Completions, as a check
-        does, with no model.
+        not flagged as ambiguous duplicates.
         """
         active = self._enabled_flows(list(self._tool_result_actions), enabled)
         enabled_per_tool_flows = {
@@ -729,11 +727,7 @@ class RailsManager:
         if not active and not enabled_per_tool_flows:
             return RailResult.allow()
         try:
-            exchanges = (
-                extract_tool_exchanges(messages)
-                if model_type is None
-                else self.engine_registry.extract_tool_exchanges(model_type, messages)
-            )
+            exchanges = extract_tool_exchanges(messages)
         except Exception as e:
             # The exception's text is not known to omit message content, so it stays in the log.
             log.warning("[%s] tool exchange extraction failed; blocking: %s", get_request_id(), e)

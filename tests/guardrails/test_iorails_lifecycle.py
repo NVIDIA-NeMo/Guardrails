@@ -23,6 +23,8 @@ from unittest.mock import AsyncMock
 import anyio
 import httpx
 import pytest
+from aiohttp import web
+from aiohttp.test_utils import TestServer
 
 from nemoguardrails import Guardrails, RailsConfig
 from nemoguardrails.guardrails import _lifecycle
@@ -61,6 +63,26 @@ class ProbeEngine(BaseEngine):
             raise self.stop_error
         self.owned = False
 
+    async def close(self):
+        """Close the client once after each successful start."""
+        if self.owned:
+            await self.stop()
+
+
+def _install_resources(rails, clients):
+    """Exercise startup rollback with the runtime-owned client pool."""
+    resources = rails.rails_engine.engine_registry.resources
+    assert resources._owned_clients is not None
+    resources._owned_clients.clients.update(clients)
+    original_start = resources.start
+
+    async def start():
+        await original_start()
+        for client in clients.values():
+            await client.start()
+
+    resources.start = start
+
 
 @pytest.fixture
 def rails(monkeypatch):
@@ -73,7 +95,7 @@ def rails(monkeypatch):
 async def test_cancelled_core_startup_rolls_back_partial_engine(rails, cancellation):
     first, second = ProbeEngine(), ProbeEngine()
     second.start_gate.clear()
-    rails.rails_engine.engine_registry._engines = {"first": first, "second": second}
+    _install_resources(rails, {"first": first, "second": second})
     if cancellation == "task":
         startup = asyncio.create_task(rails.startup())
         await second.start_entered.wait()
@@ -95,7 +117,7 @@ async def test_cancelled_core_startup_rolls_back_partial_engine(rails, cancellat
 @pytest.mark.parametrize("failure", ["timeout", "exception"])
 async def test_real_core_cleanup_retries_only_unfinished_engines(rails, failure):
     first, second = ProbeEngine(), ProbeEngine()
-    rails.rails_engine.engine_registry._engines = {"first": first, "second": second}
+    _install_resources(rails, {"first": first, "second": second})
     await rails.startup()
     if failure == "timeout":
         first.stop_gate.clear()
@@ -126,10 +148,10 @@ async def test_failed_startup_retains_failed_rollback_for_facade_shutdown(rails)
     first.stop_error = RuntimeError("rollback failed")
     startup_error = ValueError("startup failed")
     second.start = AsyncMock(side_effect=startup_error)
-    rails.rails_engine.engine_registry._engines = {"first": first, "second": second}
-    with pytest.raises(RuntimeError, match="startup failed") as caught:
+    _install_resources(rails, {"first": first, "second": second})
+    with pytest.raises(ValueError, match="startup failed") as caught:
         await rails.startup()
-    assert caught.value.__cause__ is startup_error
+    assert caught.value is startup_error
     assert first.owned
     previous_stops = first.stops
     first.stop_error = None
@@ -222,7 +244,7 @@ async def test_interrupted_queue_drain_can_be_retried():
 async def test_concurrent_starts_share_one_lifecycle(rails):
     engine = ProbeEngine()
     engine.start_gate.clear()
-    rails.rails_engine.engine_registry._engines = {"one": engine}
+    _install_resources(rails, {"one": engine})
     first = asyncio.create_task(rails.startup())
     await engine.start_entered.wait()
     second = asyncio.create_task(rails.startup())
@@ -242,15 +264,15 @@ async def test_rollback_timeout_preserves_startup_error_and_cleanup_ownership(ra
     first.stop_gate.clear()
     original = ValueError("startup failure")
     second.start = AsyncMock(side_effect=original)
-    rails.rails_engine.engine_registry._engines = {"first": first, "second": second}
-    with pytest.raises(RuntimeError) as caught:
+    _install_resources(rails, {"first": first, "second": second})
+    with pytest.raises(ValueError) as caught:
         await rails.startup()
-    assert caught.value.__cause__ is original
+    assert caught.value is original
     assert first.owned
     first.stop_gate.set()
     await rails.shutdown()
     assert not first.owned
-    assert not rails.rails_engine.engine_registry._owned_engines
+    assert not rails.rails_engine._owned_components
 
 
 @pytest.mark.asyncio
@@ -258,7 +280,7 @@ async def test_cancellation_survives_a_secondary_cleanup_error(rails):
     first, second = ProbeEngine(), ProbeEngine()
     first.stop_gate.clear()
     second.stop_error = ValueError("secondary cleanup failure")
-    rails.rails_engine.engine_registry._engines = {"first": first, "second": second}
+    _install_resources(rails, {"first": first, "second": second})
     await rails.startup()
     closing = asyncio.create_task(rails.shutdown())
     await first.stop_entered.wait()
@@ -326,8 +348,8 @@ async def test_failed_startup_can_retry_without_closing_unused_rail_http_client(
     engine = ProbeEngine()
     actual_start = engine.start
     engine.start = AsyncMock(side_effect=ValueError("startup failed"))
-    rails.rails_engine.engine_registry._engines = {"one": engine}
-    with pytest.raises(RuntimeError):
+    _install_resources(rails, {"one": engine})
+    with pytest.raises(ValueError):
         await rails.startup()
     engine.start = actual_start
     await rails.startup()
@@ -359,7 +381,7 @@ async def test_base_engine_restart_does_not_replace_client_with_pending_cleanup(
 async def test_shutdown_waits_for_startup_and_clears_facade_readiness(rails):
     engine = ProbeEngine()
     engine.start_gate.clear()
-    rails.rails_engine.engine_registry._engines = {"one": engine}
+    _install_resources(rails, {"one": engine})
     startup = asyncio.create_task(rails.startup())
     await engine.start_entered.wait()
     shutdown = asyncio.create_task(rails.shutdown())
@@ -378,7 +400,7 @@ async def test_repeated_task_cancellation_preserves_original_and_cleanup_ownersh
     first, second = ProbeEngine(), ProbeEngine()
     first.stop_gate.clear()
     second.start_gate.clear()
-    rails.rails_engine.engine_registry._engines = {"first": first, "second": second}
+    _install_resources(rails, {"first": first, "second": second})
     startup = asyncio.create_task(rails.startup())
     await second.start_entered.wait()
     startup.cancel("original cancellation")
@@ -400,7 +422,7 @@ async def test_facade_restarts_after_its_engine_is_stopped(rails):
     """Use engine readiness when deciding whether facade startup is needed."""
 
     engine = ProbeEngine()
-    rails.rails_engine.engine_registry._engines = {"one": engine}
+    _install_resources(rails, {"one": engine})
     await rails.startup()
     try:
         await rails.rails_engine.stop()
@@ -501,3 +523,49 @@ async def test_rollback_logs_cleanup_exception_and_traceback(caplog, error):
     assert record.exc_info[2] is not None
     assert str(error) in caplog.text
     assert "Traceback" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_shutdown_releases_only_its_own_model_connection():
+    connections = []
+
+    async def completion(request):
+        connections.append(request.transport)
+        return web.json_response(
+            {"choices": [{"message": {"role": "assistant", "content": "ok"}, "finish_reason": "stop"}]}
+        )
+
+    app = web.Application()
+    app.router.add_post("/v1/chat/completions", completion)
+    async with TestServer(app) as server:
+        config = RailsConfig.from_content(
+            config={
+                "models": [
+                    {
+                        "type": "main",
+                        "engine": "openai",
+                        "model": "test",
+                        "parameters": {"base_url": str(server.make_url("/")), "api_key": "test-key"},
+                    }
+                ]
+            }
+        )
+        first = Guardrails(config, require_iorails=True)
+        second = Guardrails(config, require_iorails=True)
+        messages = [{"role": "user", "content": "Hi"}]
+        async with first, second:
+            assert (await first.generate_async(messages=messages))["content"] == "ok"
+            assert (await second.generate_async(messages=messages))["content"] == "ok"
+            first_connection, second_connection = connections
+            assert first_connection is not second_connection
+
+            await first.shutdown()
+            with anyio.fail_after(2):
+                while not first_connection.is_closing():
+                    await anyio.sleep(0.01)
+            assert (await second.generate_async(messages=messages))["content"] == "ok"
+            assert connections[-1] is second_connection
+
+            await first.startup()
+            assert (await first.generate_async(messages=messages))["content"] == "ok"
+            assert connections[-1] not in (first_connection, second_connection)

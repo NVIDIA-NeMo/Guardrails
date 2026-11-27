@@ -15,21 +15,25 @@
 
 """Shared model selection and construction for runtime adapters.
 
-Configured models retain their selected framework's ownership contract. An
-injected main model is borrowed. This module neither closes models nor resets
-frameworks; managed runtime lifetimes must be wired separately.
+Runtimes can own the built-in HTTP clients used by their configured models.
+Injected models and custom providers keep their existing ownership.
 """
 
 import logging
 import os
-from dataclasses import dataclass
-from typing import Any, Dict, Literal, Optional, Sequence, Tuple
+from dataclasses import dataclass, field
+from functools import partial
+from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Sequence, Tuple
 
 from nemoguardrails.exceptions import InvalidModelConfigurationError
 from nemoguardrails.llm.cache import CacheInterface, LFUCache
+from nemoguardrails.llm.frameworks import get_default_framework, get_framework
 from nemoguardrails.llm.models.initializer import init_llm_model
 from nemoguardrails.rails.llm.config import Model
 from nemoguardrails.types import LLMModel
+
+if TYPE_CHECKING:
+    from nemoguardrails.llm.frameworks.default import _ClientPool
 
 log = logging.getLogger(__name__)
 
@@ -51,6 +55,20 @@ class ModelResources:
     main_model: Optional[LLMModel]
     specialized_models: Dict[str, LLMModel]
     caches: Dict[str, CacheInterface]
+    _owned_clients: Optional["_ClientPool"] = field(default=None, repr=False)
+    _cleanup_pending: bool = field(default=False, init=False, repr=False)
+
+    async def start(self) -> None:
+        """Complete interrupted cleanup before a runtime reuses model resources."""
+        if self._cleanup_pending:
+            await self.aclose()
+
+    async def aclose(self) -> None:
+        """Close owned model transport; borrowed models/frameworks are untouched."""
+        if self._owned_clients is not None:
+            self._cleanup_pending = True
+            await self._owned_clients.aclose()
+            self._cleanup_pending = False
 
 
 def resolve_model_resources(
@@ -123,17 +141,31 @@ def build_model_resources(
     plan: ModelResourcePlan,
     *,
     main_mode: Optional[Literal["chat", "text"]] = None,
+    managed: bool = False,
+    client_defaults: Optional[Dict[str, Any]] = None,
 ) -> ModelResources:
     """Construct through the selected framework, preserving legacy duplicate rules.
 
     Specialized models keep the first binding; caches keep the last enabled
     binding. Adapters may override the configured main mode for compatibility.
     """
+    owned_clients = None
+    initialize_model = init_llm_model
+    if managed:
+        from nemoguardrails.llm.frameworks.default import DefaultFramework, _ClientPool
+
+        framework = get_framework(get_default_framework())
+        # Subclasses can override model construction and own their transports.
+        if type(framework) is DefaultFramework:
+            owned_clients = _ClientPool(lazy=True, defaults=client_defaults)
+            create_model = partial(framework._create_model_with_pool, pool=owned_clients)
+            initialize_model = partial(init_llm_model, create_model=create_model)
+
     main_model = plan.main_model
     if plan.main_config is not None:
         config = plan.main_config
         assert config.model is not None
-        main_model = init_llm_model(
+        main_model = initialize_model(
             model_name=config.model,
             provider_name=config.engine,
             mode=main_mode if main_mode is not None else config.mode,
@@ -143,7 +175,7 @@ def build_model_resources(
     specialized_models = {}
     for config in plan.specialized_configs:
         assert config.model is not None
-        model = init_llm_model(
+        model = initialize_model(
             model_name=config.model,
             provider_name=config.engine,
             mode=config.mode,
@@ -152,4 +184,6 @@ def build_model_resources(
         specialized_models.setdefault(config.type, model)
 
     caches: Dict[str, CacheInterface] = {config.type: _create_model_cache(config) for config in plan.cache_configs}
-    return ModelResources(main_model=main_model, specialized_models=specialized_models, caches=caches)
+    return ModelResources(
+        main_model=main_model, specialized_models=specialized_models, caches=caches, _owned_clients=owned_clients
+    )

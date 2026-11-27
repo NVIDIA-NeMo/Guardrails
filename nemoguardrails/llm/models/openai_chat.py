@@ -14,6 +14,8 @@
 # limitations under the License.
 
 import json
+from collections.abc import Mapping
+from types import MappingProxyType
 from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
 from nemoguardrails.exceptions import LLMClientError, LLMResponseValidationError
@@ -74,6 +76,11 @@ class OpenAIChatModel:
     @property
     def provider_url(self) -> Optional[str]:
         return self._client.provider_url
+
+    @property
+    def default_parameters(self) -> Mapping[str, Any]:
+        """Read-only view of generation defaults used when validating offered tools."""
+        return MappingProxyType(self._default_kwargs)
 
     def _enrich(self, exc: LLMClientError) -> LLMClientError:
         exc.provider_name = self._provider_name

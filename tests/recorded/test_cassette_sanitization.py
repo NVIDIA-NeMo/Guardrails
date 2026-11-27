@@ -575,3 +575,72 @@ def test_recorded_body_matcher_compares_sanitized_json_bodies():
     recorded_body_matcher(cassette_request, replay_request)
     with pytest.raises(AssertionError, match="Recorded request JSON body"):
         recorded_body_matcher(cassette_request, stale_request)
+
+
+@pytest.mark.parametrize(
+    "recorded,replayed,matches",
+    [
+        ('{"city":"Paris"}', ' { "city" : "Paris" } ', True),
+        ('{"nested":{"values":[1,2]}}', '{"nested": {"values": [1, 2]}}', True),
+        ('{"city":"Paris"}', '{"city": "Berlin"}', False),
+        ('{"city":"New York"}', '{"city": "New  York"}', False),
+        ('{"value":1}', '{"value": 1.0}', False),
+        ('{"value":true}', '{"value": 1}', False),
+        (json.dumps({"value": 'a "quote" and space'}), json.dumps({"value": 'a "quote"  and space'}), False),
+        ('{"city":', '{ "city":', False),
+        ("[1,2]", "[1, 2]", False),
+        ('{"value":NaN}', '{"value": NaN}', False),
+        ('{"first":1,"second":2}', '{"second":2,"first":1}', False),
+        ('{"value":1,"value":2}', '{"value":2}', False),
+        (
+            json.dumps({"quoted": 'a "quote" and a \n newline', "path": "a\\b"}),
+            json.dumps({"quoted": 'a "quote" and a \n newline', "path": "a\\b"}, indent=2),
+            True,
+        ),
+    ],
+)
+def test_recorded_tool_argument_matching_ignores_only_json_object_whitespace(recorded, replayed, matches):
+    def request(arguments):
+        return Request(
+            method="POST",
+            uri="https://api.openai.com/v1/chat/completions",
+            body=json.dumps(
+                {
+                    "messages": [
+                        {
+                            "role": "assistant",
+                            "tool_calls": [
+                                {
+                                    "id": "call",
+                                    "type": "function",
+                                    "function": {"name": "weather", "arguments": arguments},
+                                }
+                            ],
+                        }
+                    ]
+                }
+            ),
+            headers={"Content-Type": "application/json"},
+        )
+
+    before, after = request(recorded), request(replayed)
+    original_bodies = (before.body, after.body)
+    if matches:
+        recorded_body_matcher(before, after)
+    else:
+        with pytest.raises(AssertionError, match="Recorded request JSON body"):
+            recorded_body_matcher(before, after)
+    assert (before.body, after.body) == original_bodies
+
+
+def test_recorded_tool_argument_matching_keeps_prompt_text_exact():
+    def request(text):
+        return Request(
+            method="POST",
+            uri="https://api.openai.com/v1/chat/completions",
+            body=json.dumps({"messages": [{"role": "user", "content": text}]}),
+            headers={},
+        )
+
+    with pytest.raises(AssertionError, match="Recorded request JSON body"):
+        recorded_body_matcher(request('{"city":"Paris"}'), request('{"city": "Paris"}'))

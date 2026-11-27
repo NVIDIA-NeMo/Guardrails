@@ -548,6 +548,13 @@ class TestToolArgumentValidation:
 
 
 class TestParams:
+    def test_default_parameters_are_available_without_allowing_reassignment(self):
+        model = OpenAIChatModel(_mock_client(), "test-model", temperature=0.3, tools=[])
+        assert dict(model.default_parameters) == {"temperature": 0.3, "tools": []}
+        with pytest.raises(TypeError):
+            model.default_parameters["temperature"] = 0.9
+        assert model._prepare_params(None, {})["temperature"] == 0.3
+
     @pytest.mark.asyncio
     async def test_reasoning_model_strips_temperature(self):
         mc = _mock_client()

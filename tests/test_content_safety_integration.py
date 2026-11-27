@@ -31,11 +31,11 @@ from nemoguardrails import RailsConfig
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.guardrails.compiled_rail import RailDependencies, compile_rail
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
-from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.library.content_safety.actions import (
     content_safety_check_input,
     content_safety_check_output,
 )
+from nemoguardrails.llm.clients.base import HTTPResponse
 from nemoguardrails.llm.output_parsers import (
     is_content_safe,
     nemoguard_parse_prompt_safety,
@@ -44,7 +44,6 @@ from nemoguardrails.llm.output_parsers import (
     nemotron_reasoning_parse_response_safety,
 )
 from nemoguardrails.manifests import RailDirection
-from nemoguardrails.types import LLMResponse
 from tests.utils import FakeLLMModel, TestChat
 
 
@@ -573,22 +572,27 @@ async def _iorails_turn(safety_replies: Tuple[str, ...]) -> EngineRun:
         iorails = IORails(_load_example_config())
 
     async with iorails:
-        safety_mock = AsyncMock(side_effect=[LLMResponse(content=reply) for reply in safety_replies])
-        for name, engine in iorails.engine_registry._engines.items():
-            if not isinstance(engine, ModelEngine):
-                continue
-            if name == "main":
-                engine.chat_completion = AsyncMock(return_value=LLMResponse(content=CROSS_ENGINE_MAIN_OUTPUT))
-            else:
-                engine.chat_completion = safety_mock
+
+        def completion(content):
+            return HTTPResponse(body={"choices": [{"message": {"content": content}, "finish_reason": "stop"}]})
+
+        safety_mock = AsyncMock(side_effect=[completion(reply) for reply in safety_replies])
+        safety_model = iorails.engine_registry.llms["content_safety"].wrapped_model.model_name
+
+        async def model_call(model, messages, **kwargs):
+            if model == safety_model:
+                return await safety_mock(messages, **kwargs)
+            return completion(CROSS_ENGINE_MAIN_OUTPUT)
+
+        for model in iorails.engine_registry.llms.values():
+            model.wrapped_model._client.chat_completion = model_call
 
         response = await iorails.generate_async(messages=[{"role": "user", "content": CROSS_ENGINE_USER_INPUT}])
         return EngineRun(
             content=_assistant_content(response),
             safety_calls=safety_mock.await_count,
             safety_turns=tuple(_turns(call.args[0]) for call in safety_mock.await_args_list),
-            # generate_from_messages merges the model's `parameters` into the per-call kwargs before
-            # reaching chat_completion, so the mock observes the request body the engine assembled.
+            # The shared adapter merges configured parameters before calling its HTTP client.
             safety_params=tuple(dict(call.kwargs) for call in safety_mock.await_args_list),
         )
 

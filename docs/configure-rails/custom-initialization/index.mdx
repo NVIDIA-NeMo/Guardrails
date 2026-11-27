@@ -8,13 +8,13 @@ content:
   type: "how_to"
 ---
 
-The `config.py` file contains initialization code that runs once at startup, before the `LLMRails` instance is fully initialized. Use it to register custom providers and set up shared resources.
+The `config.py` file contains initialization code that runs once at startup, before the `LLMRails` instance is fully initialized. Use it to register custom providers and set up shared resources. IORails does not import `config.py`; register model providers and frameworks in application startup before constructing `Guardrails` when using that engine.
 
 ## When to Use config.py or actions.py
 
 | Use Case | File | Reason |
 | --- | --- | --- |
-| Register custom LLM provider | `config.py` | Must happen before LLMRails initialization |
+| Register custom LLM provider | Application startup; `config.py` for LLMRails | Must happen before model construction; IORails ignores `config.py` |
 | Register custom embedding provider | `config.py` | Must happen before LLMRails initialization |
 | Initialize database connection | `config.py` | Shared resource, initialized once |
 | Validate user input | `actions.py` | Called during request processing |

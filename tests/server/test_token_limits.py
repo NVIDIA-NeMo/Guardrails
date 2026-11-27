@@ -19,7 +19,6 @@ import json
 from unittest.mock import AsyncMock
 
 import pytest
-from aioresponses import aioresponses
 from fastapi.testclient import TestClient
 
 from nemoguardrails import Guardrails, RailsConfig
@@ -90,34 +89,27 @@ def test_token_limits_reach_main_model(
         body = json.dumps(completion)
         headers = {"Content-Type": "application/json"}
 
-    with aioresponses() as aiohttp_mock:
-        if engine == "iorails":
-            aiohttp_mock.post(MODEL_URL, body=body, headers=headers)
-        else:
-            httpx_mock.add_response(url=MODEL_URL, method="POST", content=body.encode(), headers=headers)
+    httpx_mock.add_response(url=MODEL_URL, method="POST", content=body.encode(), headers=headers)
 
-        response = client.post(
-            "/v1/chat/completions",
-            json={
-                "model": "test-model",
-                "messages": [{"role": "user", "content": "Hello"}],
-                "stream": stream,
-                "guardrails": {"config_id": "test", "options": {"llm_params": option_params}},
-                **token_params,
-            },
-        )
-        assert response.status_code == 200, response.text
-        if stream:
-            assert "Hello!" in response.text
-            assert "data: [DONE]" in response.text
-        else:
-            assert response.json()["choices"][0]["message"]["content"] == "Hello!"
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "Hello"}],
+            "stream": stream,
+            "guardrails": {"config_id": "test", "options": {"llm_params": option_params}},
+            **token_params,
+        },
+    )
+    assert response.status_code == 200, response.text
+    if stream:
+        assert "Hello!" in response.text
+        assert "data: [DONE]" in response.text
+    else:
+        assert response.json()["choices"][0]["message"]["content"] == "Hello!"
 
-        if engine == "iorails":
-            requests = [call.kwargs["json"] for calls in aiohttp_mock.requests.values() for call in calls]
-        else:
-            requests = [json.loads(request.content) for request in httpx_mock.get_requests()]
-        assert len(requests) == 1
-        assert {
-            key: requests[0][key] for key in ("max_tokens", "max_completion_tokens") if key in requests[0]
-        } == expected_params
+    requests = [json.loads(request.content) for request in httpx_mock.get_requests()]
+    assert len(requests) == 1
+    assert {
+        key: requests[0][key] for key in ("max_tokens", "max_completion_tokens") if key in requests[0]
+    } == expected_params

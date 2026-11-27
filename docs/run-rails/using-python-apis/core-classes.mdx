@@ -3,19 +3,19 @@
 # SPDX-License-Identifier: Apache-2.0
 title: "Core Classes Reference"
 sidebar-title: "Core Classes"
-description: "RailsConfig and LLMRails class reference for loading and running guardrails."
+description: "RailsConfig, Guardrails model injection, and legacy LLMRails APIs for loading and running guardrails."
 keywords: ["RailsConfig", "LLMRails", "from_path", "from_content", "generate", "generate_async"]
 content:
   type: "reference"
 ---
 
-This guide covers the two fundamental classes in the NeMo Guardrails library: `RailsConfig` for loading configurations and `LLMRails` for generating responses with guardrails.
+This guide covers `RailsConfig` for loading configurations, `Guardrails` for supplying an application model, and the legacy `LLMRails` APIs in the NVIDIA NeMo Guardrails library.
 
 <Warning>
 
 The examples on this page use `LLMRails`, which is deprecated in 0.25.0; removal is planned no earlier than 0.27.0.
 Use `Guardrails`, which runs the IORails engine when that engine supports the configuration.
-The custom LLM, event-based generation, custom action, embedding search provider, and Colang dialog flow examples have no IORails equivalent.
+The event-based generation, custom action, embedding search provider, and Colang dialog flow examples have no IORails equivalent. IORails accepts a custom main model through the `LLMModel` protocol, as described below.
 For the steps, refer to [Migrating to 0.25](/reference/0-25#replace-llmrails-with-guardrails).
 
 </Warning>
@@ -140,9 +140,32 @@ This is useful for:
 
 ---
 
+## Custom Main Models on IORails
+
+Pass an application-owned `LLMModel` to `Guardrails` to use it as the main model:
+
+```python
+from nemoguardrails import Guardrails, RailsConfig
+from nemoguardrails.types import LLMModel
+
+
+def create_guardrails(config: RailsConfig, model: LLMModel) -> Guardrails:
+    return Guardrails(config, llm=model, require_iorails=True)
+```
+
+The model must provide `generate_async()` returning `LLMResponse`, `stream_async()` yielding `LLMResponseChunk`, and the `model_name`, `provider_name`, and `provider_url` properties. Buffered and streaming calls retain the model's structured responses, usage, reasoning, and tool metadata. Tool support depends on the model adapter.
+
+The injected model overrides a configured `main` and satisfies main-backed rails even when no main entry is configured. Specialized model entries still use the selected framework. `rails.llm` returns the injected model, and request `llm_params` override its adapter defaults. Create a new `Guardrails` instance to replace this model; IORails does not support `update_llm()`.
+
+IORails and LLMRails both use the first configured model of each type. Before 0.26, IORails used the last entry. If your configuration relied on that ordering, keep only the intended entry for each repeated type when upgrading.
+
+For LangChain, explicitly wrap the model with `nemoguardrails.integrations.langchain.llm_adapter.LangChainLLMAdapter`. Install `langchain` and its provider integration, such as `langchain-openai`, and set that provider's required API key. An unwrapped LangChain model falls back to LLMRails, or raises with `require_iorails=True`.
+
+The application retains ownership of injected models. `await rails.shutdown()` closes the runtime's built-in model transports and leaves injected models and registered provider products open. Close application-owned resources after all requests using them have finished.
+
 ## LLMRails
 
-The `LLMRails` class is the main interface for generating responses with guardrails applied.
+The `LLMRails` class is the legacy interface for generating responses with guardrails applied.
 
 ### Initialization
 

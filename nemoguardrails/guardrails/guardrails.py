@@ -119,8 +119,8 @@ class Guardrails(BaseGuardrails):
         """Initialize a Guardrails instance.
 
         When ``use_iorails`` is True, the wrapper attempts to use the IORails engine.
-        If the config or arguments are incompatible (an ``llm`` is provided, or the
-        config contains flows IORails does not support), the wrapper falls back to
+        Caller-supplied models implementing ``LLMModel`` are supported. If the
+        config contains flows IORails does not support, the wrapper falls back to
         LLMRails and logs a warning. Set ``require_iorails=True`` to raise a
         ``ValueError`` instead — use this when IORails-only features such as
         OpenTelemetry metrics are required. A config with per-tool rails
@@ -145,7 +145,7 @@ class Guardrails(BaseGuardrails):
             fallback_reason = IORails.unsupported_reason(config, llm)
             if fallback_reason is None:
                 _warn_about_what_iorails_ignores(config)
-                self._rails_engine = IORails(config)
+                self._rails_engine = IORails(config, llm=llm)
                 self.use_iorails_engine = True
             else:
                 if config.rails.tool_call.per_tool or config.rails.tool_result.per_tool:
@@ -177,11 +177,9 @@ class Guardrails(BaseGuardrails):
 
     @property
     def llm(self) -> Optional[LLMModel]:
-        """The main LLM in use. Only supported for LLMRails.
-        Read-only; use ``update_llm()`` to replace it.
-        """
+        """The configured or caller-supplied main model, before runtime instrumentation."""
         if isinstance(self.rails_engine, IORails):
-            raise NotImplementedError("IORails doesn't support llm attribute access")
+            return self.rails_engine.engine_registry.main_model
 
         llmrails = cast(LLMRails, self.rails_engine)
         return llmrails.llm
@@ -297,27 +295,42 @@ class Guardrails(BaseGuardrails):
         stream_messages = IORails._convert_to_messages(prompt, messages)
 
         async def _with_startup(
-            iterator: AsyncIterator[str | dict | ToolCallChunk | ToolCallDeltaChunk],
+            create_iterator: Callable[[], AsyncIterator[str | dict | ToolCallChunk | ToolCallDeltaChunk]],
         ) -> AsyncIterator[str | dict | ToolCallChunk | ToolCallDeltaChunk]:
-            await self._ensure_started()
-            async for chunk in iterator:
-                yield chunk
+            iterator = None
+            interrupted = False
+            try:
+                await self._ensure_started()
+                iterator = create_iterator()
+                async for chunk in iterator:
+                    yield chunk
+            except BaseException:
+                interrupted = True
+                raise
+            finally:
+                close = getattr(iterator, "aclose", None)
+                if close is not None:
+                    try:
+                        await close()
+                    except Exception as error:
+                        if not interrupted:
+                            raise
+                        log.warning("Failed to close an interrupted public stream: %s", type(error).__name__)
 
         if isinstance(self.rails_engine, IORails):
             # IORails.stream_async() only accepts messages, options, include_metadata
             unsupported = set(kwargs) - {"options", "include_metadata"}
             if unsupported:
                 log.warning("IORails stream_async: ignoring unsupported kwargs: %s", unsupported)
-            return _with_startup(
-                self.rails_engine.stream_async(
-                    messages=stream_messages,
-                    options=kwargs.get("options"),
-                    include_metadata=kwargs.get("include_metadata", False),
-                )
+            iterator = self.rails_engine.stream_async(
+                messages=stream_messages,
+                options=kwargs.get("options"),
+                include_metadata=kwargs.get("include_metadata", False),
             )
+            return _with_startup(lambda: iterator)
 
         llmrails = cast(LLMRails, self.rails_engine)
-        return _with_startup(llmrails.stream_async(messages=stream_messages, **kwargs))
+        return _with_startup(lambda: llmrails.stream_async(messages=stream_messages, **kwargs))
 
     def explain(self) -> ExplainInfo:
         """Get the latest ExplainInfo object for debugging.
@@ -333,7 +346,7 @@ class Guardrails(BaseGuardrails):
 
     def update_llm(self, llm: LLMModel) -> None:
         """Replace the main LLM with a new one.
-        Only supported for LLMRails, since IORails doesn't take LLM as argument
+        Only supported for LLMRails; IORails accepts its main model at construction.
         """
         if isinstance(self.rails_engine, IORails):
             raise NotImplementedError("IORails doesn't support update_llm()")

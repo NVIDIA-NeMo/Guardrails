@@ -37,7 +37,7 @@ import httpx
 import pytest
 
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
-from nemoguardrails.guardrails.model_engine import ModelEngine
+from nemoguardrails.llm.models.openai_chat import OpenAIChatModel
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.types import LLMResponse
 from tests.guardrails.test_data import (
@@ -197,19 +197,20 @@ async def _iorails_reply(
     config_dict: dict, rail_reply: Optional[str] = None, messages: Optional[list[dict]] = None
 ) -> str:
     """Run one turn through IORails and return the assistant content."""
-    # Mocks each engine's transport, so the whole RailsManager -> CompiledRail -> EngineRegistry
-    # chain runs without a network call. Keyed by engine name, as EngineRegistry holds them.
+    # Mocks each engine's transport, so the whole RailsManager -> CompiledRail -> ModelRuntime
+    # chain runs without a network call. Keyed by engine name, as ModelRuntime holds them.
     with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
         iorails = IORails(RailsConfig.from_content(config=config_dict))
 
     async with iorails:
-        for name, engine in iorails.engine_registry._engines.items():
-            if not isinstance(engine, ModelEngine):
+        for name, wrapped in iorails.engine_registry.llms.items():
+            engine = wrapped.wrapped_model
+            if not isinstance(engine, OpenAIChatModel):
                 continue
             if name == "main":
-                engine.chat_completion = AsyncMock(return_value=LLMResponse(content=MAIN_OUTPUT))
+                engine.generate_async = AsyncMock(return_value=LLMResponse(content=MAIN_OUTPUT))
             elif rail_reply is not None:
-                engine.chat_completion = AsyncMock(return_value=LLMResponse(content=rail_reply))
+                engine.generate_async = AsyncMock(return_value=LLMResponse(content=rail_reply))
 
         response = await iorails.generate_async(messages=messages or [{"role": "user", "content": USER_INPUT}])
         return _assistant_content(response)

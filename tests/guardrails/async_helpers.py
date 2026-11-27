@@ -30,6 +30,7 @@ import httpx
 
 from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
 from nemoguardrails.guardrails.iorails import IORails
+from nemoguardrails.llm.clients.base import HTTPResponse
 from nemoguardrails.rails.llm.config import RailsConfig
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 
@@ -100,12 +101,11 @@ def saturate_stream_semaphore(iorails: IORails) -> None:
 
 def mock_rail_model(engine_registry, mock, model_type=None):
     """Route rail model calls to *mock*, or only *model_type*'s, and return it."""
-    # The double belongs on the engine instances: compiled rails reach the model through
-    # ModelEngine.chat_completion rather than EngineRegistry.model_call.
+    # Keep shared call tracking and instrumentation around the model double.
     engines = engine_registry.llms
     targets = [engines[model_type]] if model_type is not None else list(engines.values())
     for engine in targets:
-        engine.chat_completion = mock
+        engine.wrapped_model.generate_async = mock
     return mock
 
 
@@ -140,9 +140,9 @@ def mock_jailbreak_nim_failure(httpx_mock, message: str = "connection refused") 
 
 def mock_rail_http_response(engine_registry, payload, model_type=None):
     """Answer a rail's model call with a raw payload, one level under :func:`mock_rail_model`."""
-    mock = AsyncMock(return_value=payload)
+    mock = AsyncMock(return_value=HTTPResponse(body=payload))
     engines = engine_registry.llms
     targets = [engines[model_type]] if model_type is not None else list(engines.values())
     for engine in targets:
-        engine.call = mock
+        engine.wrapped_model._client._apost = mock
     return mock

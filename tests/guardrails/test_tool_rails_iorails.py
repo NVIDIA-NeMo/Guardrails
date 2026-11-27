@@ -33,10 +33,10 @@ import pytest_asyncio
 from nemoguardrails import Guardrails
 from nemoguardrails.guardrails.guardrails_types import RailDirection
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
-from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.types import ToolCallChunk
 from tests.guardrails.async_helpers import started_iorails
+from tests.guardrails.model_helpers import install_model_http_mock
 from tests.guardrails.tool_helpers import (
     WEATHER_SCHEMA,
     make_tool_conversation,
@@ -101,61 +101,21 @@ def _config(rails: dict) -> RailsConfig:
 
 
 def _inject_json_response(iorails: IORails, payload: dict) -> None:
-    """Wire the 'main' engine's aiohttp client to return *payload* as JSON."""
-    mock_response = AsyncMock()
-    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-    mock_response.status = 200
-    mock_response.json = AsyncMock(return_value=payload)
-    mock_client = AsyncMock()
-    mock_client.post = MagicMock(return_value=mock_response)
-    mock_client.closed = False
-    engine = iorails.engine_registry._get_engine("main", ModelEngine)
-    engine._client = mock_client
-    engine._running = True
+    """Replace HTTP transport while retaining canonical response parsing."""
+    install_model_http_mock(iorails.engine_registry, "main", payload)
 
 
 def _inject_sse_stream(iorails: IORails, raw_lines: list) -> None:
-    """Wire the 'main' engine's aiohttp client to stream *raw_lines* via readline()."""
-    all_lines = []
-    for raw in raw_lines:
-        for part in raw.split(b"\n"):
-            if part:
-                all_lines.append(part + b"\n")
-    line_iter = iter(all_lines)
-
-    async def _readline():
-        return next(line_iter, b"")
-
-    mock_content = MagicMock()
-    mock_content.readline = _readline
-
-    mock_response = AsyncMock()
-    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-    mock_response.status = 200
-    mock_response.content = mock_content
-
-    mock_client = AsyncMock()
-    mock_client.post = MagicMock(return_value=mock_response)
-    mock_client.closed = False
-    engine = iorails.engine_registry._get_engine("main", ModelEngine)
-    engine._client = mock_client
-    engine._running = True
+    """Replace HTTP transport while retaining canonical SSE parsing."""
+    install_model_http_mock(iorails.engine_registry, "main", raw_lines=raw_lines)
 
 
 def _inject_forbidden_transport(iorails: IORails) -> MagicMock:
-    """Wire the 'main' engine with a transport whose ``post`` must never be called.
-
-    Returns the mock ``post`` so the test can assert it stayed untouched. Any actual
-    call raises immediately, so a regression that lets a blocked request reach the
-    provider fails loudly here instead of hitting the live network.
-    """
-    mock_client = AsyncMock()
-    mock_client.post = MagicMock(side_effect=AssertionError("provider must not be called when the request is blocked"))
-    mock_client.closed = False
-    engine = iorails.engine_registry._get_engine("main", ModelEngine)
-    engine._client = mock_client
-    engine._running = True
-    return mock_client.post
+    """Fail if a blocked request reaches model transport."""
+    client = install_model_http_mock(
+        iorails.engine_registry, "main", error=AssertionError("provider must not be called")
+    )
+    return client._test_model_calls[iorails.engine_registry.llms["main"].model_name]
 
 
 def _tool_call_payload(name: str, arguments_json: str, call_id: str = "call_1") -> dict:
@@ -691,3 +651,80 @@ class TestToolRailBlockMetrics:
         assert len(violations) == 1
         assert violations[0]["error"]["param"] == "tool_call_rails"
         record_blocked.assert_called_once_with(RailDirection.OUTPUT)
+
+
+@pytest.fixture
+def langchain_tool_rails():
+    pytest.importorskip("langchain_core")
+    from nemoguardrails.integrations.langchain.llm_adapter import LangChainLLMAdapter
+
+    llm = MagicMock(model_name="test-model")
+    llm.bind.return_value = llm
+    rails = Guardrails(config=_config(TOOL_CONFIG["rails"]), llm=LangChainLLMAdapter(llm), require_iorails=True)
+    return rails, llm
+
+
+@pytest.mark.asyncio
+async def test_injected_langchain_model_rejects_malformed_generated_call(langchain_tool_rails):
+    from langchain_core.messages import AIMessage
+
+    from nemoguardrails.exceptions import LLMCallException
+
+    rails, llm = langchain_tool_rails
+    llm.ainvoke = AsyncMock(
+        return_value=AIMessage(
+            content="", invalid_tool_calls=[{"id": "call_1", "name": "get_weather", "args": "{broken"}]
+        )
+    )
+    async with rails:
+        with pytest.raises(LLMCallException, match="valid JSON object"):
+            await rails.generate_async(messages=MESSAGES, options={"llm_params": LLM_PARAMS})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("finish_reason", [None, "length"])
+async def test_injected_langchain_stream_checks_completed_tool_call(langchain_tool_rails, finish_reason):
+    from langchain_core.messages import AIMessageChunk
+
+    async def stream(*args, **kwargs):
+        yield AIMessageChunk(
+            content="", tool_call_chunks=[{"index": 0, "id": "call_1", "name": "undeclared", "args": "{}"}]
+        )
+        if finish_reason:
+            yield AIMessageChunk(content="", response_metadata={"finish_reason": finish_reason})
+
+    rails, llm = langchain_tool_rails
+    llm.astream = stream
+    async with rails:
+        chunks = await _collect(rails.stream_async(messages=MESSAGES, options={"llm_params": LLM_PARAMS}))
+    violations = _stream_violation_chunks(chunks)
+    assert len(violations) == 1
+    assert violations[0]["error"]["param"] == "tool_call_rails"
+    assert not any(isinstance(chunk, ToolCallChunk) for chunk in chunks)
+
+
+@pytest.mark.asyncio
+async def test_injected_langchain_stream_closes_on_invalid_call(langchain_tool_rails):
+    from langchain_core.messages import AIMessageChunk
+
+    closed = False
+
+    async def stream(*args, **kwargs):
+        nonlocal closed
+        try:
+            yield AIMessageChunk(
+                content="", tool_call_chunks=[{"index": 0, "id": "call_1", "name": "get_weather", "args": "{broken"}]
+            )
+            yield AIMessageChunk(content="", response_metadata={"finish_reason": "tool_calls"})
+        finally:
+            closed = True
+            raise RuntimeError("provider cleanup failed")
+
+    rails, llm = langchain_tool_rails
+    provider_stream = stream()
+    llm.astream.return_value = provider_stream
+    async with rails:
+        chunks = await _collect(rails.stream_async(messages=MESSAGES, options={"llm_params": LLM_PARAMS}))
+        assert closed
+    assert "valid JSON object" in json.loads(chunks[-1])["error"]["message"]
+    assert not any(isinstance(chunk, ToolCallChunk) for chunk in chunks)

@@ -128,7 +128,8 @@ def _model_double(log: RailCallLog, model_type: str, verdict: str) -> AsyncMock:
     """
 
     async def _chat_completion(messages, **kwargs):
-        log.record(model_type, "\n".join(str(message.get("content", "")) for message in messages))
+        text = messages if isinstance(messages, str) else "\n".join(str(message.content or "") for message in messages)
+        log.record(model_type, text)
         return LLMResponse(content=verdict)
 
     return AsyncMock(side_effect=_chat_completion)
@@ -178,10 +179,10 @@ def _answer_model_rails(engine: IORails, log: RailCallLog, verdicts: dict[str, s
     """Attach a double per model-backed rail, and return the main-model double."""
     for model_type, rail_engine in engine.engine_registry.llms.items():
         if model_type in verdicts:
-            rail_engine.chat_completion = _model_double(log, model_type, verdicts[model_type])
+            rail_engine.wrapped_model.generate_async = _model_double(log, model_type, verdicts[model_type])
 
     main = AsyncMock(return_value=LLMResponse(content=MAIN_OUTPUT))
-    engine.engine_registry._engines["main"].chat_completion = main
+    engine.engine_registry.llms["main"].wrapped_model.generate_async = main
     return main
 
 
@@ -239,7 +240,7 @@ class TestMaskingRailAheadOfJudgingRails:
         await pipeline_iorails.generate_async(messages=[{"role": "user", "content": USER_INPUT}])
 
         sent = main.call_args.args[0]
-        assert sent[-1]["content"] == MASKED_INPUT
+        assert sent[-1].content == MASKED_INPUT
 
     async def test_the_caller_gets_the_answer_and_keeps_their_own_message(self, pipeline_iorails, call_log, httpx_mock):
         """Masking is internal to the turn: the reply is the model's, and the caller's list is theirs."""
@@ -478,7 +479,7 @@ def _streaming_config(flows: list[str], *, stream_first: bool = False, context_s
 async def _stream_of(text: str):
     """A main-model stream delivering *text* in one chunk, so one batch reaches the output rails."""
 
-    async def _stream(model_type, messages, **kwargs):
+    async def _stream(messages, **kwargs):
         yield LLMResponseChunk(delta_content=text)
 
     return _stream
@@ -498,9 +499,9 @@ class TestMaskingRailWhileStreaming:
         engine = IORails(RailsConfig.from_content(config=_streaming_config(flows, **streaming)))
         for model_type, rail_engine in engine.engine_registry.llms.items():
             if model_type in verdicts:
-                rail_engine.chat_completion = _model_double(call_log, model_type, verdicts[model_type])
+                rail_engine.wrapped_model.generate_async = _model_double(call_log, model_type, verdicts[model_type])
         _register_http_doubles(httpx_mock, call_log, gliner_runs=GLINER_OUTPUT_FLOW in flows)
-        engine.engine_registry.stream_model_call = await _stream_of(STREAMED_ANSWER)
+        engine.engine_registry.llms["main"].wrapped_model.stream_async = await _stream_of(STREAMED_ANSWER)
         return engine
 
     async def test_a_single_masking_rail_masks_what_is_streamed(self, call_log, httpx_mock):
@@ -572,9 +573,11 @@ class TestInputMaskingReachesStreamingOutputRails:
         engine = IORails(RailsConfig.from_content(config=config))
         for model_type, rail_engine in engine.engine_registry.llms.items():
             if model_type in OUTPUT_ALL_ALLOW:
-                rail_engine.chat_completion = _model_double(call_log, model_type, OUTPUT_ALL_ALLOW[model_type])
+                rail_engine.wrapped_model.generate_async = _model_double(
+                    call_log, model_type, OUTPUT_ALL_ALLOW[model_type]
+                )
         _register_http_doubles(httpx_mock, call_log)
-        engine.engine_registry.stream_model_call = await _stream_of(MAIN_OUTPUT)
+        engine.engine_registry.llms["main"].wrapped_model.stream_async = await _stream_of(MAIN_OUTPUT)
 
         async with engine:
             await _streamed(engine)

@@ -16,10 +16,10 @@
 """Reasoning-model support for IORails.
 
 Non-streaming path mirrors LLMRails behavior
-- Prefer the provider-native ``LLMResponse.reasoning`` field.
-- Fall back to inline ``<think>...</think>`` tags in content (the helper
-  strips the tags from ``response.content`` in place so output rails never
-  see reasoning).
+- A nonempty ``LLMResponse.reasoning`` takes precedence. Any inline
+  ``<think>`` tags remain in the content checked by output rails.
+- Otherwise, the shared model call extracts reasoning from inline tags
+  before output rails check the answer.
 - Surface reasoning to the caller via a ``<think>{reasoning}</think>\\n``
   prefix on the returned content (LLMRails legacy delivery shape).
 
@@ -108,9 +108,9 @@ def _stub_safe_input(iorails: IORails) -> None:
 
 
 def _make_stream(*chunks: LLMResponseChunk):
-    """Drop-in for engine_registry.stream_model_call yielding fixed chunks."""
+    """Provider stream yielding fixed chunks through canonical invocation."""
 
-    async def _stream(_model_type, _messages, **_kwargs):
+    async def _stream(_messages, **_kwargs):
         for c in chunks:
             yield c
 
@@ -134,7 +134,7 @@ class TestReasoningContent:
         """``response.reasoning`` is wrapped in <think> tags and prefixed to content."""
         messages = [{"role": "user", "content": "hi"}]
         _stub_safe_rails(iorails)
-        iorails.engine_registry.model_call = AsyncMock(
+        iorails.engine_registry.llms["main"].wrapped_model.generate_async = AsyncMock(
             return_value=LLMResponse(content="Hello", reasoning="thinking step")
         )
 
@@ -150,28 +150,26 @@ class TestReasoningContent:
         """<think>...</think> in content is extracted, stripped before output rails, and re-prefixed on return."""
         messages = [{"role": "user", "content": "hi"}]
         _stub_safe_rails(iorails)
-        iorails.engine_registry.model_call = AsyncMock(
+        iorails.engine_registry.llms["main"].wrapped_model.generate_async = AsyncMock(
             return_value=LLMResponse(content="<think>thinking step</think>Hello")
         )
 
         result = await iorails.generate_async(messages=messages)
 
         assert result == {"role": "assistant", "content": "<think>thinking step</think>\nHello"}
-        # Output rails MUST receive content with <think> tags stripped — this is
-        # the central guarantee that reasoning bypasses output rails.
         iorails.rails_manager.is_output_safe.assert_called_once_with(messages, "Hello", enabled=True)
 
     @pytest.mark.asyncio
     async def test_native_reasoning_wins_over_inline_tags(self, iorails):
         """When both are present, ``response.reasoning`` is used and inline tags are NOT stripped.
 
-        Mirrors the LLMRails ``_store_reasoning_traces`` order (utils.py:339-342):
+        The shared model call gives the native field precedence:
         the inline-tag fallback is only consulted if the native field is empty.
         Inline tags remain in content verbatim — output rails see them unstripped.
         """
         messages = [{"role": "user", "content": "hi"}]
         _stub_safe_rails(iorails)
-        iorails.engine_registry.model_call = AsyncMock(
+        iorails.engine_registry.llms["main"].wrapped_model.generate_async = AsyncMock(
             return_value=LLMResponse(
                 content="<think>tag reasoning</think>Hello",
                 reasoning="native reasoning",
@@ -193,7 +191,9 @@ class TestReasoningContent:
         """A response with reasoning and no content returns the <think> block and runs output rails on ''."""
         messages = [{"role": "user", "content": "hi"}]
         _stub_safe_rails(iorails)
-        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="", reasoning="thinking step"))
+        iorails.engine_registry.llms["main"].wrapped_model.generate_async = AsyncMock(
+            return_value=LLMResponse(content="", reasoning="thinking step")
+        )
 
         result = await iorails.generate_async(messages=messages)
 
@@ -205,7 +205,9 @@ class TestReasoningContent:
         """Opening tag without closing → no extraction, content preserved verbatim."""
         messages = [{"role": "user", "content": "hi"}]
         _stub_safe_rails(iorails)
-        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="<think>incomplete reasoning"))
+        iorails.engine_registry.llms["main"].wrapped_model.generate_async = AsyncMock(
+            return_value=LLMResponse(content="<think>incomplete reasoning")
+        )
 
         result = await iorails.generate_async(messages=messages)
 
@@ -219,7 +221,9 @@ class TestReasoningContent:
         """Closing tag without opening → no extraction, content preserved verbatim."""
         messages = [{"role": "user", "content": "hi"}]
         _stub_safe_rails(iorails)
-        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="orphan</think> reply"))
+        iorails.engine_registry.llms["main"].wrapped_model.generate_async = AsyncMock(
+            return_value=LLMResponse(content="orphan</think> reply")
+        )
 
         result = await iorails.generate_async(messages=messages)
 
@@ -232,7 +236,7 @@ class TestReasoningContent:
         messages = [{"role": "user", "content": "hi"}]
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.block(reason="unsafe"))
-        iorails.engine_registry.model_call = AsyncMock(
+        iorails.engine_registry.llms["main"].wrapped_model.generate_async = AsyncMock(
             return_value=LLMResponse(content="bad answer", reasoning="reasoning step")
         )
 
@@ -246,15 +250,13 @@ class TestReasoningContent:
         messages = [{"role": "user", "content": "hi"}]
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.block(reason="unsafe"))
-        iorails.engine_registry.model_call = AsyncMock(
+        iorails.engine_registry.llms["main"].wrapped_model.generate_async = AsyncMock(
             return_value=LLMResponse(content="<think>thinking</think>bad answer")
         )
 
         result = await iorails.generate_async(messages=messages)
 
         assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
-        # Output rails see only the stripped content — they're judging the model
-        # output, not the reasoning trace.
         iorails.rails_manager.is_output_safe.assert_called_once_with(messages, "bad answer", enabled=True)
 
     @pytest.mark.asyncio
@@ -262,7 +264,7 @@ class TestReasoningContent:
         """``response.reasoning = ''`` is falsy → fallback to inline-tag extraction runs."""
         messages = [{"role": "user", "content": "hi"}]
         _stub_safe_rails(iorails)
-        iorails.engine_registry.model_call = AsyncMock(
+        iorails.engine_registry.llms["main"].wrapped_model.generate_async = AsyncMock(
             return_value=LLMResponse(content="<think>fallback reasoning</think>Hi", reasoning="")
         )
 
@@ -276,7 +278,9 @@ class TestReasoningContent:
         """Baseline: no ``response.reasoning`` and no inline tags → content unmodified, no prefix."""
         messages = [{"role": "user", "content": "hi"}]
         _stub_safe_rails(iorails)
-        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="plain answer"))
+        iorails.engine_registry.llms["main"].wrapped_model.generate_async = AsyncMock(
+            return_value=LLMResponse(content="plain answer")
+        )
 
         result = await iorails.generate_async(messages=messages)
 
@@ -305,7 +309,7 @@ class TestStreamingReasoningWarning:
         scoped to each request and yielded chunks stay unchanged each time.
         """
         _stub_safe_input(iorails_input_only)
-        iorails_input_only.engine_registry.stream_model_call = _make_stream(
+        iorails_input_only.engine_registry.llms["main"].wrapped_model.stream_async = _make_stream(
             LLMResponseChunk(delta_content="<think>"),
             LLMResponseChunk(delta_content="reasoning step"),
             LLMResponseChunk(delta_content="</think>"),
@@ -331,7 +335,7 @@ class TestStreamingReasoningWarning:
     async def test_structured_delta_reasoning_no_warning(self, iorails_input_only, caplog_iorails):
         """Structured delta_reasoning channel → no warning, no <think> tokens leaked into chunks."""
         _stub_safe_input(iorails_input_only)
-        iorails_input_only.engine_registry.stream_model_call = _make_stream(
+        iorails_input_only.engine_registry.llms["main"].wrapped_model.stream_async = _make_stream(
             LLMResponseChunk(delta_reasoning="thinking step"),
             LLMResponseChunk(delta_content="Hello"),
             LLMResponseChunk(delta_content=" world"),
@@ -346,7 +350,7 @@ class TestStreamingReasoningWarning:
     async def test_clean_content_no_warning(self, iorails_input_only, caplog_iorails):
         """Plain content with no reasoning anywhere → no warning."""
         _stub_safe_input(iorails_input_only)
-        iorails_input_only.engine_registry.stream_model_call = _make_stream(
+        iorails_input_only.engine_registry.llms["main"].wrapped_model.stream_async = _make_stream(
             LLMResponseChunk(delta_content="Hello"),
             LLMResponseChunk(delta_content=" world"),
         )
@@ -360,7 +364,7 @@ class TestStreamingReasoningWarning:
     async def test_malformed_opener_only_still_warns(self, iorails_input_only, caplog_iorails):
         """Only an opening <think> tag (no closer) → still warns; the leak is the same."""
         _stub_safe_input(iorails_input_only)
-        iorails_input_only.engine_registry.stream_model_call = _make_stream(
+        iorails_input_only.engine_registry.llms["main"].wrapped_model.stream_async = _make_stream(
             LLMResponseChunk(delta_content="<think>incomplete reasoning"),
         )
 
@@ -373,7 +377,7 @@ class TestStreamingReasoningWarning:
     async def test_malformed_closer_only_still_warns(self, iorails_input_only, caplog_iorails):
         """Only a closing </think> tag (no opener) → still warns; the leak is the same."""
         _stub_safe_input(iorails_input_only)
-        iorails_input_only.engine_registry.stream_model_call = _make_stream(
+        iorails_input_only.engine_registry.llms["main"].wrapped_model.stream_async = _make_stream(
             LLMResponseChunk(delta_content="orphan</think> reply"),
         )
 

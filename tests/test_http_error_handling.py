@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Provider exception → LLMCallException / ModelEngineError / HTTPStatusError → HTTP status."""
+"""Provider exception → LLMCallException / LLMCallException / HTTPStatusError → HTTP status."""
 
 from unittest.mock import AsyncMock, patch
 
@@ -34,7 +34,6 @@ from nemoguardrails.exceptions import (
     LLMServerError,
     LLMTimeoutError,
 )
-from nemoguardrails.guardrails.model_engine import ModelEngineError
 from nemoguardrails.http.errors import HTTPStatusError
 from nemoguardrails.http.types import HTTPResponse
 from nemoguardrails.llm.call import _extract_http_status, _raise_llm_call_exception
@@ -190,10 +189,10 @@ class TestAPIErrorPropagation:
         [
             (LLMCallException("Unauthorized", status=401), 401),
             (LLMCallException("Forbidden", status=403), 403),
-            (ModelEngineError("Not found", "m", status=404), 404),
+            (LLMCallException("Not found", detail="Model invocation failed", status=404), 404),
             (_vendor_http_error(429), 429),
-            (ModelEngineError("Internal server error", "m", status=500), 500),
-            (ModelEngineError("Bad gateway", "m", status=502), 502),
+            (LLMCallException("Internal server error", detail="Model invocation failed", status=500), 500),
+            (LLMCallException("Bad gateway", detail="Model invocation failed", status=502), 502),
             (_vendor_http_error(503), 503),
         ],
         ids=[
@@ -216,7 +215,9 @@ class TestAPIErrorPropagation:
         assert "code" in error
 
     def test_no_status_returns_500(self):
-        response = _post(side_effect=ModelEngineError("Connection refused", "m", status=None))
+        response = _post(
+            side_effect=LLMCallException("Connection refused", detail="Model invocation failed", status=None)
+        )
         assert response.status_code == 500
 
     def test_wrapped_provider_error_does_not_disclose_internal_context(self):

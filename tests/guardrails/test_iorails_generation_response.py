@@ -69,7 +69,7 @@ def _blocked_unless(safe: bool) -> RailResult:
 
 def _stub_model(iorails: IORails, response: LLMResponse) -> None:
     """Make the main-model call return a fixed structured LLMResponse."""
-    iorails.engine_registry.model_call = AsyncMock(return_value=response)
+    iorails.engine_registry.llms["main"].wrapped_model.generate_async = AsyncMock(return_value=response)
 
 
 _USER = [{"role": "user", "content": "hi"}]
