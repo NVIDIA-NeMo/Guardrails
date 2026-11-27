@@ -284,6 +284,8 @@ class LLMJudgeComplianceChecker:
 
             # We run this with temperature 0 for deterministic results.
             result = (await llm_call(self.llm, prompt, llm_params={"temperature": 0})).content
+            llm_call_info = llm_call_info_var.get()
+            assert llm_call_info is not None
 
             if self.verbose:
                 # If concurrency is greater than 1, we also print the prompt
