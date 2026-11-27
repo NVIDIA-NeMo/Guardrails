@@ -165,7 +165,7 @@ class LangChainLLMAdapter:
                 chatmessages_to_langchain_messages,
             )
 
-            return chatmessages_to_langchain_messages(prompt)
+            return chatmessages_to_langchain_messages(prompt, preserve_tool_arguments=self.provider_name == "openai")
         return prompt
 
     async def generate_async(

@@ -15,6 +15,7 @@
 
 """Utilities for converting between LangChain messages and dictionary format."""
 
+import json
 from typing import Any, Dict, List, Optional, Type
 
 from langchain_core.messages import (
@@ -290,7 +291,7 @@ _ROLE_TO_LANGCHAIN = {
 }
 
 
-def chatmessage_to_langchain_message(msg: ChatMessage) -> BaseMessage:
+def chatmessage_to_langchain_message(msg: ChatMessage, *, preserve_tool_arguments: bool = False) -> BaseMessage:
     cls = _ROLE_TO_LANGCHAIN.get(msg.role)
     if cls is None:
         raise ValueError(f"Unsupported role: {msg.role}")
@@ -300,10 +301,33 @@ def chatmessage_to_langchain_message(msg: ChatMessage) -> BaseMessage:
         kwargs["name"] = msg.name
 
     if cls is AIMessage and msg.tool_calls:
-        kwargs["tool_calls"] = [
-            {"name": tc.function.name, "args": tc.function.arguments, "id": tc.id, "type": tc.type}
-            for tc in msg.tool_calls
-        ]
+        if preserve_tool_arguments:
+            message = cls(content=msg.content or "", **kwargs)
+            wire_calls = [tc.to_dict() for tc in msg.tool_calls]
+            for call in wire_calls:
+                arguments = call["function"]["arguments"]
+                if isinstance(arguments, dict):
+                    call["function"]["arguments"] = json.dumps(arguments)
+            # AIMessage's constructor parses this field, losing original argument
+            # strings and grouping valid and invalid calls separately on export.
+            message.additional_kwargs["tool_calls"] = wire_calls
+            return message
+
+        kwargs["tool_calls"] = []
+        kwargs["invalid_tool_calls"] = []
+        for tc in msg.tool_calls:
+            arguments = tc.function.arguments
+            if isinstance(arguments, str):
+                try:
+                    arguments = json.loads(arguments)
+                except json.JSONDecodeError:
+                    arguments = None
+            if isinstance(arguments, dict):
+                kwargs["tool_calls"].append({"name": tc.function.name, "args": arguments, "id": tc.id})
+            else:
+                kwargs["invalid_tool_calls"].append(
+                    {"name": tc.function.name, "args": tc.function.arguments, "id": tc.id}
+                )
 
     if cls is ToolMessage:
         kwargs["tool_call_id"] = msg.tool_call_id or ""
@@ -311,8 +335,10 @@ def chatmessage_to_langchain_message(msg: ChatMessage) -> BaseMessage:
     return cls(content=msg.content or "", **kwargs)
 
 
-def chatmessages_to_langchain_messages(msgs: List[ChatMessage]) -> List[BaseMessage]:
-    return [chatmessage_to_langchain_message(m) for m in msgs]
+def chatmessages_to_langchain_messages(
+    msgs: List[ChatMessage], *, preserve_tool_arguments: bool = False
+) -> List[BaseMessage]:
+    return [chatmessage_to_langchain_message(m, preserve_tool_arguments=preserve_tool_arguments) for m in msgs]
 
 
 def tool_calls_to_langchain_format(tool_calls: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

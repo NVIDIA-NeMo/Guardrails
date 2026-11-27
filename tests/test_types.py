@@ -489,3 +489,32 @@ class TestLLMFrameworkProtocol:
             pass
 
         assert not isinstance(IncompleteFramework(), LLMFramework)
+
+
+@pytest.mark.parametrize("arguments", [' {"city": "Paris"} ', "{broken", "[1]", "null", ""])
+@pytest.mark.parametrize("nested", [True, False])
+def test_request_history_preserves_tool_argument_strings(arguments, nested):
+    call = {"id": "old", "function": {"name": "weather", "arguments": arguments}}
+    if not nested:
+        call = {"id": "old", "name": "weather", "args": arguments}
+    message = {"role": "assistant", "tool_calls": [call]}
+
+    restored = ChatMessage.from_dict(message, preserve_tool_arguments=True)
+
+    assert not isinstance(restored.tool_calls[0], ToolCall)
+    assert restored.tool_calls[0].function.arguments == arguments
+    assert restored.to_dict()["tool_calls"][0]["function"]["arguments"] == arguments
+    if arguments.strip().startswith('{"'):
+        assert ChatMessage.from_dict(message).tool_calls[0].function.arguments == {"city": "Paris"}
+    else:
+        with pytest.raises(ValueError):
+            ChatMessage.from_dict(message)
+
+
+@pytest.mark.parametrize("arguments", [[], None, 1])
+def test_request_history_does_not_accept_untyped_arguments(arguments):
+    with pytest.raises(ValueError):
+        ChatMessage.from_dict(
+            {"role": "assistant", "tool_calls": [{"function": {"name": "weather", "arguments": arguments}}]},
+            preserve_tool_arguments=True,
+        )

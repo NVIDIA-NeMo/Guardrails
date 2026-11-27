@@ -353,7 +353,7 @@ def _schema_mismatch_violation(tool: Tool, error: jsonschema.ValidationError) ->
     )
 
 
-def validate_arguments(tool: Tool, arguments: dict) -> ArgumentsViolation | None:
+def validate_arguments(tool: Tool, arguments: dict | str) -> ArgumentsViolation | None:
     """Validate model-supplied tool-call arguments against the tool's schema.
 
     Returns ``None`` when the arguments are valid. Returns an ``ArgumentsViolation`` when
@@ -362,6 +362,11 @@ def validate_arguments(tool: Tool, arguments: dict) -> ArgumentsViolation | None
     adapter normalizes it), or when a function tool that declares no parameters is called
     with arguments.
     """
+    if not isinstance(arguments, dict):
+        return ArgumentsViolation(
+            violation_type=ToolViolationType.ARGUMENTS_INVALID,
+            reason=f"arguments for tool '{tool.key}' must be a parsed JSON object",
+        )
     if tool.arguments_schema is None:
         return _no_arguments_violation(tool, arguments)
     try:
@@ -441,7 +446,7 @@ def tool_call_validation(func: Callable[..., Any]) -> Callable[..., Any]:
     return wrapper
 
 
-def scope_arguments(arguments: dict, argument_name: str | None) -> dict:
+def scope_arguments(arguments: dict | str, argument_name: str | None) -> dict:
     """Narrow *arguments* to one named argument, or return it unchanged.
 
     ``argument_name`` comes from a flow's ``$argument=<name>`` parameter, frozen at
@@ -459,6 +464,8 @@ def scope_arguments(arguments: dict, argument_name: str | None) -> dict:
     TODO: only a single argument name is supported today; add delimiter-separated
     multi-argument support (e.g. `$argument=a,b`) as a follow-up.
     """
+    if not isinstance(arguments, dict):
+        raise ValueError("Tool arguments must be a parsed JSON object before scoping")
     if argument_name is None or argument_name not in arguments:
         return arguments
     return {argument_name: arguments[argument_name]}

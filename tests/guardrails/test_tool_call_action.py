@@ -146,3 +146,12 @@ class TestToolCallRailAction:
         call = ToolCall(id="c1", type="code_interpreter", function=ToolCallFunction(name="", arguments={}))
         result = await ToolCallRailAction().run(toolset, [call])
         assert_outcome_blocked(result, "code_interpreter", "not an allowed tool")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("arguments", ["{}", "{broken", "[]"])
+async def test_raw_request_history_arguments_cannot_be_executed(arguments):
+    call = ToolCall(id="raw", function=ToolCallFunction(name="weather", arguments=arguments))
+    outcome = await ToolCallRailAction().run(Toolset(tools=[Tool(name="weather", arguments_schema={})]), [call])
+    assert outcome.is_blocked
+    assert violations_in(outcome)[0].violation_type == "arguments_invalid"

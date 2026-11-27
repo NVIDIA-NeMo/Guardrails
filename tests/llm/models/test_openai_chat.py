@@ -1001,3 +1001,42 @@ async def test_streamed_calls_require_function_names(finish_reason, name):
                 chunks.append(chunk)
         assert all(not chunk.delta_tool_calls for chunk in chunks)
     assert closed
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("streaming", [False, True])
+@pytest.mark.parametrize("arguments", [' {"query": "Paris"} ', "{broken", "[1]", "null", ""])
+async def test_llm_call_preserves_request_tool_argument_strings(arguments, streaming):
+    from nemoguardrails.llm.call import llm_call
+    from nemoguardrails.streaming import StreamingHandler
+
+    client = _mock_client()
+    client.chat_completion = AsyncMock(return_value=_response())
+
+    async def stream(*args, **kwargs):
+        for chunk in _stream_chunks([{"content": "Hello"}]):
+            yield chunk
+
+    client.stream_chat_completion = MagicMock(side_effect=stream)
+    history = [
+        {
+            "role": "assistant",
+            "tool_calls": [{"id": "old", "type": "function", "function": {"name": "search", "arguments": arguments}}],
+        }
+    ]
+    await llm_call(_model(client), history, streaming_handler=StreamingHandler() if streaming else None)
+    invocation = client.stream_chat_completion if streaming else client.chat_completion
+    assert invocation.call_args.args[1] == history
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("arguments", ["{broken", "[1]", "null"])
+async def test_generated_arguments_still_require_json_object(arguments):
+    client = _mock_client()
+    client.chat_completion = AsyncMock(
+        return_value=_response(
+            tool_calls=[{"id": "new", "type": "function", "function": {"name": "search", "arguments": arguments}}]
+        )
+    )
+    with pytest.raises(LLMResponseValidationError, match="valid JSON object"):
+        await _model(client).generate_async("next")

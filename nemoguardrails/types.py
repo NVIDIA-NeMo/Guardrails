@@ -58,8 +58,32 @@ class Role(str, Enum):
 
 @dataclass
 class ToolCallFunction:
+    """A generated or executable tool function with parsed JSON arguments."""
+
     name: str
     arguments: Dict[str, Any]
+
+
+@dataclass
+class _HistoryToolCallFunction:
+    name: str
+    arguments: str
+
+
+@dataclass
+class _HistoryToolCall:
+    """A previous assistant call whose arguments must round-trip verbatim."""
+
+    id: str
+    type: str
+    function: _HistoryToolCallFunction
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "type": self.type,
+            "function": {"name": self.function.name, "arguments": self.function.arguments},
+        }
 
 
 @dataclass
@@ -149,7 +173,7 @@ _ROLE_ALIASES = {
 class ChatMessage:
     role: Role
     content: Optional[Union[str, List[Dict[str, Any]]]] = None
-    tool_calls: Optional[List[ToolCall]] = None
+    tool_calls: Optional[List[Union[ToolCall, _HistoryToolCall]]] = None
     tool_call_id: Optional[str] = None
     name: Optional[str] = None
     provider_metadata: Dict[str, Any] = field(default_factory=dict)
@@ -191,13 +215,16 @@ class ChatMessage:
         return payload
 
     @classmethod
-    def from_dict(cls, d: Dict[str, Any]) -> "ChatMessage":
+    def from_dict(cls, d: Dict[str, Any], *, preserve_tool_arguments: bool = False) -> "ChatMessage":
         """Create a ChatMessage from a dict.
 
         Accepts both the canonical nested tool call format
         (``{"function": {"name": ..., "arguments": ...}}``) and the legacy
         flat format (``{"name": ..., "args": ...}``). JSON string arguments
-        are parsed automatically. Role aliases like "bot", "human", and
+        are parsed automatically unless ``preserve_tool_arguments`` is set for
+        request history, where strings are retained verbatim without validation.
+        This option must not be used to validate generated or executable calls.
+        Role aliases like "bot", "human", and
         "developer" are mapped to canonical Role values. Unknown keys are
         captured into ``provider_metadata``.
         """
@@ -221,21 +248,30 @@ class ChatMessage:
                     raw_args = tc.get("args", {})
                     func_data = {"name": tc.get("name", "")}
 
+                if isinstance(raw_args, str) and preserve_tool_arguments:
+                    tool_calls.append(
+                        _HistoryToolCall(
+                            id=tc.get("id", ""),
+                            type=tc.get("type", "function"),
+                            function=_HistoryToolCallFunction(name=func_data.get("name", ""), arguments=raw_args),
+                        )
+                    )
+                    continue
                 if isinstance(raw_args, str):
                     try:
-                        args_dict = json.loads(raw_args)
+                        arguments = json.loads(raw_args)
                     except json.JSONDecodeError:
                         raise ValueError(f"Tool call arguments are not valid JSON: {raw_args!r}")
-                    if not isinstance(args_dict, dict):
+                    if not isinstance(arguments, dict):
                         raise ValueError(
-                            f"Tool call arguments must be a JSON object, got {type(args_dict).__name__}: {raw_args!r}"
+                            f"Tool call arguments must be a JSON object, got {type(arguments).__name__}: {raw_args!r}"
                         )
                 else:
                     if not isinstance(raw_args, dict):
                         raise ValueError(
                             f"Tool call arguments must be a dict, got {type(raw_args).__name__}: {raw_args!r}"
                         )
-                    args_dict = raw_args
+                    arguments = raw_args
 
                 tool_calls.append(
                     ToolCall(
@@ -243,7 +279,7 @@ class ChatMessage:
                         type=tc.get("type", "function"),
                         function=ToolCallFunction(
                             name=func_data.get("name", ""),
-                            arguments=args_dict,
+                            arguments=arguments,
                         ),
                     )
                 )

@@ -66,7 +66,7 @@ def _ensure_chat_messages(prompt: Union[str, list]) -> Union[str, List[ChatMessa
         return cast(List[ChatMessage], [])
     if isinstance(prompt[0], ChatMessage):
         return cast(List[ChatMessage], prompt)
-    return [ChatMessage.from_dict(d) for d in prompt]
+    return [ChatMessage.from_dict(d, preserve_tool_arguments=True) for d in prompt]
 
 
 # TODO: we must drop prompt in the codebase completely and use messages everywhere.

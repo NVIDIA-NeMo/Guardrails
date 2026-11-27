@@ -238,7 +238,7 @@ def _parse_chat_completion(response: dict) -> LLMResponse:
     elif not isinstance(content, str):
         raise ValueError(f"Expected string content, got {type(content).__name__}")
 
-    tool_calls = ChatMessage.from_dict(message).tool_calls if raw_tool_calls else None
+    tool_calls = cast(list[ToolCall], ChatMessage.from_dict(message).tool_calls) if raw_tool_calls else None
 
     usage = _parse_usage(response["usage"]) if response.get("usage") else None
 

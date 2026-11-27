@@ -1100,6 +1100,8 @@ async def test_tool_followup_invalid_model_fails_closed(
 ):
     config = _config(provider, nvidia_inference_key)
     config.models[0].model = OPENAI_INVALID_MODEL
+    # Keep the captured request bytes; exact history preservation is covered by adapter tests.
+    arguments = '{"city":"Paris"}' if engine == "iorails" else '{"city": "Paris"}'
     messages = [
         {"role": "user", "content": "Get Paris weather."},
         {
@@ -1108,7 +1110,7 @@ async def test_tool_followup_invalid_model_fails_closed(
                 {
                     "id": "call_weather",
                     "type": "function",
-                    "function": {"name": "get_weather", "arguments": '{"city":"Paris"}'},
+                    "function": {"name": "get_weather", "arguments": arguments},
                 }
             ],
         },
