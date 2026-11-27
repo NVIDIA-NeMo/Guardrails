@@ -966,3 +966,38 @@ class TestProperties:
         mc.provider_url = "https://example.com/v1"
         m = _model(mc)
         assert m.provider_url == "https://example.com/v1"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("finish_reason", [None, "tool_calls", "stop", "length", "content_filter"])
+@pytest.mark.parametrize("name", [None, "", "   ", "clock"])
+async def test_streamed_calls_require_function_names(finish_reason, name):
+    client = _mock_client()
+    closed = False
+    call = {"index": 0, "id": "call-clock"}
+    if name is not None:
+        call["function"] = {"name": name, "arguments": ""}
+
+    async def stream(*args, **kwargs):
+        nonlocal closed
+        try:
+            yield HTTPResponse(body={"choices": [{"delta": {"tool_calls": [call]}, "finish_reason": None}]})
+            if finish_reason is not None:
+                yield HTTPResponse(body={"choices": [{"delta": {}, "finish_reason": finish_reason}]})
+        finally:
+            closed = True
+
+    client.stream_chat_completion = stream
+    model = _model(client)
+    chunks = []
+    if name and name.strip():
+        chunks = [chunk async for chunk in model.stream_async("Clock?")]
+        calls = [call for chunk in chunks for call in chunk.delta_tool_calls or []]
+        assert calls == [ToolCall(id="call-clock", function=ToolCallFunction(name=name, arguments={}))]
+        assert chunks[-1].finish_reason == (finish_reason or "tool_calls")
+    else:
+        with pytest.raises(LLMResponseValidationError, match="function name"):
+            async for chunk in model.stream_async("Clock?"):
+                chunks.append(chunk)
+        assert all(not chunk.delta_tool_calls for chunk in chunks)
+    assert closed

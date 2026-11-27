@@ -209,6 +209,8 @@ class OpenAIChatModel:
         result = []
         for idx in sorted(acc.keys()):
             entry = acc[idx]
+            if not entry["function_name"].strip():
+                raise LLMResponseValidationError("Tool call must include a function name")
             result.append(
                 OpenAIChatModel._parse_tool_call(
                     {
