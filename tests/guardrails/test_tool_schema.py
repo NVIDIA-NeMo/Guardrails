@@ -452,3 +452,14 @@ class TestToolCallValidation:
                 tool_definition=hosted,
                 argument_name="query",
             )
+
+
+@pytest.mark.parametrize("schema", [None, {}, {"type": "string"}, {"type": "object"}])
+@pytest.mark.parametrize("arguments", ["{}", "{broken", ""])
+def test_opaque_request_arguments_cannot_pass_tool_validation(schema, arguments):
+    tool = Tool(name="weather", arguments_schema=schema)
+    violation = validate_arguments(tool, arguments)
+    assert violation is not None
+    assert violation.violation_type == ToolViolationType.ARGUMENTS_INVALID
+    with pytest.raises(ValueError, match="parsed JSON object"):
+        scope_arguments(arguments, None)

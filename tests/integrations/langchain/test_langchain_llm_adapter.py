@@ -1037,3 +1037,77 @@ class TestStreamingToolCalls:
         assert results[1].delta_content == " world"
         assert results[1].finish_reason == "stop"
         assert results[1].delta_tool_calls is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("streaming", [False, True])
+@pytest.mark.parametrize("binding", ["plain", "tools", "nested"])
+async def test_openai_adapter_preserves_exact_request_history(monkeypatch, streaming, binding):
+    from langchain_core.runnables import RunnableBinding
+    from langchain_openai import ChatOpenAI
+    from langchain_openai.chat_models.base import _construct_responses_api_input, _convert_message_to_dict
+
+    arguments = [' {"city": "Paris"} ', "{broken", "[1]", "null", ""]
+    wire_calls = [
+        {"id": str(index), "type": "function", "function": {"name": "weather", "arguments": argument}}
+        for index, argument in enumerate(arguments)
+    ]
+    history = [{"role": "assistant", "tool_calls": wire_calls}]
+    seen = []
+    captured_kwargs = []
+
+    async def invoke(self, messages, config=None, **kwargs):
+        captured_kwargs.append(kwargs)
+        seen.extend(messages)
+        return AIMessage(content="ok")
+
+    async def stream(self, messages, config=None, **kwargs):
+        captured_kwargs.append(kwargs)
+        seen.extend(messages)
+        yield AIMessageChunk(content="ok", response_metadata={"finish_reason": "stop"})
+
+    monkeypatch.setattr(ChatOpenAI, "ainvoke", invoke)
+    monkeypatch.setattr(ChatOpenAI, "astream", stream)
+    model = ChatOpenAI(model="test-model", api_key="unused")
+    tool = {"type": "function", "function": {"name": "weather", "parameters": {"type": "object", "properties": {}}}}
+    if binding != "plain":
+        model = model.bind_tools([tool], tool_choice="auto")
+    if binding == "nested":
+        model = RunnableBinding(bound=model, kwargs={"temperature": 0.2})
+    adapter = LangChainLLMAdapter(model)
+    assert adapter.raw_llm is model
+    if streaming:
+        from nemoguardrails.streaming import StreamingHandler
+
+        await llm_call(adapter, history, streaming_handler=StreamingHandler())
+    else:
+        await llm_call(adapter, history)
+
+    assert seen[0].additional_kwargs["tool_calls"] == wire_calls
+    assert _convert_message_to_dict(seen[0])["tool_calls"] == wire_calls
+    response_calls = _construct_responses_api_input(seen)
+    assert [call["arguments"] for call in response_calls if call["type"] == "function_call"] == arguments
+
+    assert adapter.provider_name == "openai"
+    if binding != "plain":
+        assert captured_kwargs[0]["tools"] == [tool]
+        assert captured_kwargs[0]["tool_choice"] == "auto"
+    if binding == "nested":
+        assert captured_kwargs[0]["temperature"] == 0.2
+
+
+def test_generic_langchain_message_keeps_parsed_and_invalid_calls():
+    history = ChatMessage.from_dict(
+        {
+            "role": "assistant",
+            "tool_calls": [
+                {"id": "good", "function": {"name": "weather", "arguments": ' {"city": "Paris"} '}},
+                {"id": "bad", "function": {"name": "weather", "arguments": "{broken"}},
+                {"id": "array", "function": {"name": "weather", "arguments": "[1]"}},
+            ],
+        },
+        preserve_tool_arguments=True,
+    )
+    converted = chatmessage_to_langchain_message(history)
+    assert converted.tool_calls[0]["args"] == {"city": "Paris"}
+    assert [call["args"] for call in converted.invalid_tool_calls] == ["{broken", "[1]"]

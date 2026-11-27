@@ -84,6 +84,10 @@ def _infer_provider_from_module(llm: Any) -> Optional[str]:
     Returns:
         The inferred provider name, or None if it cannot be determined
     """
+    from langchain_core.runnables.base import RunnableBindingBase
+
+    while isinstance(llm, RunnableBindingBase):
+        llm = llm.bound
     module = type(llm).__module__
 
     if module.startswith("langchain_"):
@@ -165,7 +169,7 @@ class LangChainLLMAdapter:
                 chatmessages_to_langchain_messages,
             )
 
-            return chatmessages_to_langchain_messages(prompt)
+            return chatmessages_to_langchain_messages(prompt, preserve_tool_arguments=self.provider_name == "openai")
         return prompt
 
     async def generate_async(

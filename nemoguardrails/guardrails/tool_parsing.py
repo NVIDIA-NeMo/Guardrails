@@ -82,7 +82,7 @@ def _tool_calls_from_message(message: dict) -> list[ToolCall]:
     """Extract the tool calls from one assistant message into ``ToolCall`` objects.
     Malformed tool calls fall back to just id, type, function"""
     try:
-        return ChatMessage.from_dict(message).tool_calls or []
+        return cast(list[ToolCall], ChatMessage.from_dict(message).tool_calls or [])
     except ValueError:
         return [
             ToolCall(
