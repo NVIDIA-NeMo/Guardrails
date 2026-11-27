@@ -84,6 +84,10 @@ def _infer_provider_from_module(llm: Any) -> Optional[str]:
     Returns:
         The inferred provider name, or None if it cannot be determined
     """
+    from langchain_core.runnables.base import RunnableBindingBase
+
+    while isinstance(llm, RunnableBindingBase):
+        llm = llm.bound
     module = type(llm).__module__
 
     if module.startswith("langchain_"):
