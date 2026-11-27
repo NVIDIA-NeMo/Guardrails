@@ -2,8 +2,8 @@
 Decision Model Integration Flows (Colang 1.x)
 
 The configured endpoint answers typed yes/no questions with probabilities.
-The questions, thresholds, endpoint, model, and API-key environment variable
-are configured under `rails.config.decision_model`.
+Rules and thresholds are configured under `rails.config.decision_model.rules`.
+The $model parameter selects a configured System One model by type.
 
 Supported features:
 - Input checks: ask the configured questions about the user message
@@ -12,7 +12,7 @@ Supported features:
 
 define subflow decision model check input
   """Guardrail based on decision model answers to the configured input questions."""
-  $result = execute decision_model_check(source="input", text=$user_message)
+  $result = execute decision_model_check(source="input", rule=$rule, model_name=$model, text=$user_message)
 
   if $result.is_blocked
     if $config.enable_rails_exceptions
@@ -24,7 +24,7 @@ define subflow decision model check input
 
 define subflow decision model check output
   """Guardrail based on decision model answers to the configured output questions."""
-  $result = execute decision_model_check(source="output", text=$bot_message)
+  $result = execute decision_model_check(source="output", rule=$rule, model_name=$model, text=$bot_message)
 
   if $result.is_blocked
     if $config.enable_rails_exceptions

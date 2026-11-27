@@ -264,144 +264,64 @@
       "title": "CrowdStrikeAIDRRailConfig",
       "type": "object"
     },
-    "DecisionModelConfig": {
+    "DecisionModelBlockCondition": {
       "additionalProperties": false,
-      "description": "Configuration for the decision model rail.",
       "properties": {
-        "api_key_env_var": {
-          "anyOf": [
-            {
-              "minLength": 1,
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Environment variable containing the API key, sent as a bearer token. Optional: when unset, requests are sent without an Authorization header. Requires an https:// server_endpoint when set.",
-          "title": "Api Key Env Var"
-        },
-        "fail_open": {
-          "default": false,
-          "description": "If true, allow the text when the decision model cannot be reached. Default is to fail closed and block.",
-          "title": "Fail Open",
-          "type": "boolean"
-        },
-        "input": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/DecisionModelOptions"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Questions asked about the user input. Required to use the input rail."
-        },
-        "model": {
-          "description": "The decision model identifier. Pin a version for reproducibility.",
-          "minLength": 1,
-          "title": "Model",
-          "type": "string"
-        },
-        "output": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/DecisionModelOptions"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Questions asked about the bot output. Required to use the output rail."
-        },
-        "server_endpoint": {
-          "description": "The decision model assessment endpoint URL.",
-          "minLength": 1,
-          "title": "Server Endpoint",
-          "type": "string"
-        },
-        "threshold": {
-          "default": 0.5,
-          "description": "Default probability at or above which a question blocks the text.",
+        "probability_at_least": {
+          "description": "Block at or above this probability.",
           "maximum": 1.0,
           "minimum": 0.0,
-          "title": "Threshold",
+          "title": "Probability At Least",
           "type": "number"
-        },
-        "timeout": {
-          "default": 10.0,
-          "description": "Per-request timeout in seconds.",
-          "exclusiveMinimum": 0,
-          "title": "Timeout",
-          "type": "number"
-        },
-        "verify_ssl": {
-          "default": true,
-          "description": "Verify the endpoint's TLS certificate. Set to false only for self-signed or internal certificates you trust.",
-          "title": "Verify Ssl",
-          "type": "boolean"
         }
       },
       "required": [
-        "server_endpoint",
-        "model"
+        "probability_at_least"
       ],
-      "title": "DecisionModelConfig",
+      "title": "DecisionModelBlockCondition",
       "type": "object"
     },
-    "DecisionModelOptions": {
+    "DecisionModelConfig": {
       "additionalProperties": false,
-      "description": "Per-direction (input / output) options for the decision model.",
+      "description": "Rules selected by each flow's $rule parameter.",
       "properties": {
-        "questions": {
+        "fail_open": {
+          "default": false,
+          "description": "Allow text on provider failure instead of blocking.",
+          "title": "Fail Open",
+          "type": "boolean"
+        },
+        "rules": {
           "additionalProperties": {
-            "$ref": "#/$defs/DecisionModelQuestion"
+            "$ref": "#/$defs/DecisionModelRule"
           },
-          "description": "Noul questions to ask about the text, keyed by an identifier. At least one is required. The text is blocked if any answer probability reaches its threshold.",
+          "description": "Named decision rules.",
           "minProperties": 1,
-          "title": "Questions",
+          "title": "Rules",
           "type": "object"
         }
       },
       "required": [
-        "questions"
+        "rules"
       ],
-      "title": "DecisionModelOptions",
+      "title": "DecisionModelConfig",
       "type": "object"
     },
-    "DecisionModelQuestion": {
+    "DecisionModelRule": {
       "additionalProperties": false,
-      "description": "A single Noul (yes/no) question asked of the decision model about the text.",
       "properties": {
-        "instructions": {
-          "description": "The yes/no question to ask the decision model about the text.",
-          "title": "Instructions",
-          "type": "string"
+        "block_if": {
+          "$ref": "#/$defs/DecisionModelBlockCondition"
         },
-        "threshold": {
-          "anyOf": [
-            {
-              "maximum": 1.0,
-              "minimum": 0.0,
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Per-question block threshold in [0, 1]. Falls back to the rail-level threshold when unset.",
-          "title": "Threshold"
+        "question": {
+          "$ref": "#/$defs/NoulQuestion"
         }
       },
       "required": [
-        "instructions"
+        "question",
+        "block_if"
       ],
-      "title": "DecisionModelQuestion",
+      "title": "DecisionModelRule",
       "type": "object"
     },
     "F5GuardrailsRailConfig": {
@@ -949,6 +869,29 @@
         }
       },
       "title": "MultilingualConfig",
+      "type": "object"
+    },
+    "NoulQuestion": {
+      "additionalProperties": false,
+      "description": "A yes/no question whose answer is a probability.",
+      "properties": {
+        "instructions": {
+          "description": "A yes/no question; yes means the text should be blocked.",
+          "minLength": 1,
+          "title": "Instructions",
+          "type": "string"
+        },
+        "type": {
+          "const": "noul",
+          "default": "noul",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "instructions"
+      ],
+      "title": "NoulQuestion",
       "type": "object"
     },
     "PangeaRailConfig": {

@@ -617,6 +617,14 @@ class LLMRails(BaseGuardrails):
         # treat it as the *main* model, but **still** iterate through the
         # configuration to load any additional models (e.g. `content_safety`).
 
+        for model_config in self.config.models:
+            if model_config.engine == "system_one" and model_config.type in {
+                "main",
+                "embeddings",
+                "jailbreak_detection",
+            }:
+                raise InvalidModelConfigurationError("System One requires a dedicated decision model type.")
+
         if self.llm:
             # If an LLM was provided via constructor, use it as the main LLM
             # Log a warning if a main LLM is also specified in the config
@@ -660,6 +668,12 @@ class LLMRails(BaseGuardrails):
                     raise InvalidModelConfigurationError(
                         f"`model` field must be set in model configuration: {llm_config.model_dump_json()}"
                     )
+
+                if llm_config.engine == "system_one":
+                    from nemoguardrails.library.decision_model.model import SystemOneModel
+
+                    llms[llm_config.type] = SystemOneModel(llm_config)
+                    continue
 
                 provider_name = llm_config.engine
                 kwargs = self._prepare_model_kwargs(llm_config)

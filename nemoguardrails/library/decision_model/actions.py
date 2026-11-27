@@ -13,26 +13,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Text assessment using a configured decision model service."""
+"""Apply one named decision rule to input or output text."""
 
 import logging
-import os
-from typing import Any, Dict, Optional
+from collections.abc import Mapping
+from typing import Any
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.http import HTTPClient
-from nemoguardrails.library.decision_model.rail_config import DecisionModelConfig
-from nemoguardrails.library.decision_model.request import DecisionModelAuthError, decision_model_request
+from nemoguardrails.library.decision_model.model import DecisionModelConfigurationError
+from nemoguardrails.library.decision_model.rail_config import NoulQuestion
+from nemoguardrails.library.decision_model.request import DecisionModelAuthError, DecisionModelError
 
 log = logging.getLogger(__name__)
 
-VALID_SOURCES = ("input", "output")
 
-
-def _failure_outcome(source: str, fail_open: bool, reason: str) -> RailOutcome:
-    metadata = {"source": source, "error": reason, "fail_open": fail_open}
+def _failure_outcome(source: str, rule: str, fail_open: bool, reason: str) -> RailOutcome:
+    metadata = {"source": source, "rule": rule, "error": reason, "fail_open": fail_open}
     if fail_open:
         return RailOutcome.allow(metadata=metadata)
     return RailOutcome.block(reason=reason, metadata=metadata)
@@ -42,103 +41,69 @@ def _failure_outcome(source: str, fail_open: bool, reason: str) -> RailOutcome:
 async def decision_model_check(
     source: str,
     text: str,
+    rule: str,
+    model_name: str,
     config: RailsConfig,
-    http_client: Optional[HTTPClient] = None,
+    llms: Mapping[str, Any],
+    http_client: HTTPClient | None = None,
     **kwargs,
 ) -> RailOutcome:
-    """Ask the decision model the configured yes/no questions about ``text`` and block on a high probability.
+    """Ask the selected model one question and apply the rule's inclusive threshold.
 
-    Args:
-        source: Either "input" or "output"; selects which configured questions to ask.
-        text: The text to assess.
-        config: The rails configuration object.
-
-    Returns:
-        RailOutcome.block() if any question's probability reaches its threshold, or if the decision model
-        cannot be reached and ``fail_open`` is false; RailOutcome.allow() otherwise. Metadata
-        explains the verdict without carrying the text: ``source`` (the screened direction),
-        per-question ``scores`` and effective ``thresholds``, the ``triggered`` question ids,
-        ``violations`` (one ``{question, score, threshold}`` record per triggered question, so a
-        consumer can tell which policy blocked and by how much), and the resolved ``model`` when
-        supplied by the provider.
-
-    Raises:
-        ValueError: If ``source`` is invalid, the rail is unconfigured, the requested direction has no questions, or its configured
-            API-key environment variable is unset. These are configuration errors.
-        DecisionModelAuthError: If the service rejects the credentials (HTTP 401 or 403) and
-            ``fail_open`` is false. The engine reports this as a system error rather than a
-            refusal, because the fix is the credentials, not the text.
+    Configuration and credential errors raise regardless of fail_open. Provider
+    failures block by default; authentication failures raise a system error.
     """
-    if source not in VALID_SOURCES:
-        raise ValueError(
-            f"Decision model can only be defined in the following flows: {list(VALID_SOURCES)}. Got '{source}'."
-        )
-
-    decision_model_config: Optional[DecisionModelConfig] = config.rails.config.decision_model
-    if decision_model_config is None:
-        raise ValueError("rails.config.decision_model must configure server_endpoint and model.")
-    options = getattr(decision_model_config, source)
-    if options is None:
-        raise ValueError(f"rails.config.decision_model.{source}.questions must be configured to screen {source} text.")
-    questions = options.questions
-    # Nothing to assess (e.g. an empty or tool-call-only assistant turn): skip the API call and the
-    # API-key requirement rather than sending an empty state.
-    if not (text or "").strip():
-        return RailOutcome.allow(
-            metadata={"source": source, "scores": {}, "thresholds": {}, "triggered": [], "violations": []}
-        )
-
-    api_key = None
-    if decision_model_config.api_key_env_var:
-        api_key = os.environ.get(decision_model_config.api_key_env_var) or None
-        if api_key is None:
-            raise ValueError(f"{decision_model_config.api_key_env_var} environment variable not set.")
-
-    try:
-        assessment = await decision_model_request(
-            text,
-            {qid: q.instructions for qid, q in questions.items()},
-            decision_model_config.server_endpoint,
-            decision_model_config.model,
-            api_key,
-            http_client=http_client,
-            timeout=decision_model_config.timeout,
-            verify_ssl=decision_model_config.verify_ssl,
-        )
-    except DecisionModelAuthError as err:
-        log.error("%s", err)
-        if decision_model_config.fail_open:
-            log.warning("fail_open is enabled; allowing text despite the authentication failure.")
-            return _failure_outcome(source, True, str(err))
-        raise
-    except ValueError as err:
-        log.warning(
-            "Decision model assessment failed (%s); %s.",
-            err,
-            "allowing text" if decision_model_config.fail_open else "blocking text",
-        )
-        return _failure_outcome(source, decision_model_config.fail_open, str(err))
-
-    scores = assessment.scores
-    thresholds = {
-        qid: questions[qid].threshold if questions[qid].threshold is not None else decision_model_config.threshold
-        for qid in scores
-    }
-    violations = [
-        {"question": qid, "score": score, "threshold": thresholds[qid]}
-        for qid, score in scores.items()
-        if score >= thresholds[qid]
-    ]
-    triggered = [violation["question"] for violation in violations]
-    metadata: Dict[str, Any] = {
+    if source not in ("input", "output"):
+        raise ValueError("Decision model source must be input or output.")
+    settings = config.rails.config.decision_model
+    if settings is None or rule not in settings.rules:
+        raise DecisionModelConfigurationError("The selected decision model rule is not configured.")
+    model = llms.get(model_name)
+    if not callable(getattr(model, "decide", None)):
+        raise DecisionModelConfigurationError("The selected model must implement decide().")
+    selected_rule = settings.rules[rule]
+    metadata: dict[str, Any] = {
         "source": source,
-        "scores": scores,
-        "thresholds": thresholds,
-        "triggered": triggered,
-        "violations": violations,
+        "rule": rule,
+        "scores": {},
+        "thresholds": {},
+        "triggered": [],
+        "violations": [],
     }
-    if assessment.model is not None:
-        metadata["model"] = assessment.model
-    if triggered:
-        return RailOutcome.block(reason=f"Decision model flagged: {', '.join(triggered)}", metadata=metadata)
+    # Tool-call-only and empty turns have no text to screen or send to a provider.
+    if not (text or "").strip():
+        return RailOutcome.allow(metadata=metadata)
+    try:
+        answer = await model.decide(
+            name=rule,
+            question=NoulQuestion(instructions=selected_rule.question.instructions),
+            state={"user_message" if source == "input" else "bot_message": text},
+            http_client=http_client,
+        )
+    except DecisionModelConfigurationError:
+        raise
+    except DecisionModelAuthError:
+        log.error("Decision model authentication failed.")
+        if not settings.fail_open:
+            raise
+        log.warning("fail_open is enabled; allowing text despite the authentication failure.")
+        return _failure_outcome(source, rule, True, "Decision model authentication failed.")
+    except DecisionModelError:
+        # Adapter exceptions can carry provider content; use a fixed public error.
+        reason = "Decision model assessment failed."
+        log.warning("%s %s text.", reason, "Allowing" if settings.fail_open else "Blocking")
+        return _failure_outcome(source, rule, settings.fail_open, reason)
+
+    threshold = selected_rule.block_if.probability_at_least
+    blocked = answer.probability >= threshold
+    metadata.update(
+        scores={rule: answer.probability},
+        thresholds={rule: threshold},
+        triggered=[rule] if blocked else [],
+        violations=[{"question": rule, "score": answer.probability, "threshold": threshold}] if blocked else [],
+    )
+    if answer.model is not None:
+        metadata["model"] = answer.model
+    if blocked:
+        return RailOutcome.block(reason=f"Decision model flagged: {rule}", metadata=metadata)
     return RailOutcome.allow(metadata=metadata)

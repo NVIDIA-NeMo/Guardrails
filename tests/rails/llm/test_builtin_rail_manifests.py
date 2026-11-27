@@ -226,6 +226,8 @@ def test_named_model_surfaces_bind_literal_model_names():
 def test_model_dependent_surfaces_declare_model_bindings():
     surfaces = default_rail_catalog().surfaces()
     expected = {
+        (RailDirection.INPUT, "decision model check input"),
+        (RailDirection.OUTPUT, "decision model check output"),
         (RailDirection.INPUT, "content safety check input"),
         (RailDirection.OUTPUT, "content safety check output"),
         (RailDirection.INPUT, "llama guard check input"),

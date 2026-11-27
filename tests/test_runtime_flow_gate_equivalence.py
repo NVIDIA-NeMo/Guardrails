@@ -305,14 +305,16 @@ POLICYAI_OUTPUT = RailSpec(
 
 DECISION_MODEL_INPUT = RailSpec(
     name="decision_model_input",
-    flow="decision model check input",
+    flow="decision model check input $rule=jailbreak $model=decider",
+    model_type="decider",
     direction="input",
     action="decision_model_check",
 )
 
 DECISION_MODEL_OUTPUT = RailSpec(
     name="decision_model_output",
-    flow="decision model check output",
+    flow="decision model check output $rule=jailbreak $model=decider",
+    model_type="decider",
     direction="output",
     action="decision_model_check",
 )
@@ -3011,7 +3013,7 @@ _SURFACE_DIRECTIONS = {
 # about the flow gate; _reject_unconfigured_models is covered in test_compiled_rail.py.
 _IORAILS_MODELS = [
     {"type": model_type, "engine": "openai", "model": "placeholder"}
-    for model_type in ("main", "content_safety", "topic_control", "llama_guard")
+    for model_type in ("main", "content_safety", "topic_control", "llama_guard", "decider")
 ]
 
 

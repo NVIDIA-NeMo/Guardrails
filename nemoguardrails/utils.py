@@ -540,6 +540,13 @@ def _get_flow_params(flow_id: str) -> dict:
     if "(" in flow_id and ")" in flow_id:
         arg_string = flow_id.split("(")[1].split(")")[0]
     elif "$" in flow_id:
+        if flow_id.count("$") > 1:
+            from nemoguardrails.manifests.surface_reference import parse_configured_surface
+
+            # Configured rails can select both a rule and a model. Keep the legacy
+            # single-$ / comma syntax below, but parse multi-parameter references
+            # exactly as the manifest engine does instead of dropping later values.
+            return parse_configured_surface(flow_id)[1]
         arg_string = flow_id.split("$")[1]
     else:
         return params

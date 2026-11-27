@@ -31,7 +31,11 @@ from nemoguardrails.http import (
 AUTH_FAILURE_STATUS_CODES = frozenset({401, 403})
 
 
-class DecisionModelAuthError(ValueError):
+class DecisionModelError(ValueError):
+    """The decision service could not return a valid assessment."""
+
+
+class DecisionModelAuthError(DecisionModelError):
     """The decision model rejected the credentials (HTTP 401 or 403)."""
 
 
@@ -42,7 +46,7 @@ class DecisionModelAssessment:
 
 
 async def decision_model_request(
-    text: str,
+    state: dict[str, str],
     questions: Dict[str, str],
     server_endpoint: str,
     model: str,
@@ -51,12 +55,12 @@ async def decision_model_request(
     timeout: float = 10.0,
     verify_ssl: bool = True,
 ) -> DecisionModelAssessment:
-    """Ask the decision model a batch of yes/no (Noul) questions about ``text``.
+    """Ask the decision model yes/no (Noul) questions about structured state.
 
     All questions go in a single request to the configured endpoint.
 
     Args:
-        text: The text to assess, sent in the "state" field.
+        state: Named text fields to assess, sent in the "state" field.
         questions: Mapping of question id to the yes/no question instructions.
         server_endpoint: The assessment endpoint URL.
         model: The decision model identifier.
@@ -72,11 +76,11 @@ async def decision_model_request(
 
     Raises:
         DecisionModelAuthError: If the service answers 401 or 403.
-        ValueError: If the call fails, times out, or the response is malformed.
+        DecisionModelError: If the call fails, times out, or the response is malformed.
             Messages never include the request text.
     """
     payload = {
-        "state": text,
+        "state": state,
         "model": model,
         "questions": {qid: {"type": "noul", "instructions": instructions} for qid, instructions in questions.items()},
     }
@@ -96,9 +100,9 @@ async def decision_model_request(
             factory=lambda: create_http_client(timeout=timeout, tls=HTTPTLSConfig(verify=verify_ssl)),
         )
     except HTTPTimeoutError as err:
-        raise ValueError(f"Decision model call timed out after {timeout} seconds.") from err
+        raise DecisionModelError(f"Decision model call timed out after {timeout} seconds.") from err
     except HTTPClientError as err:
-        raise ValueError(f"Decision model call failed: {type(err).__name__}") from err
+        raise DecisionModelError(f"Decision model call failed: {type(err).__name__}") from err
 
     if response.status_code in AUTH_FAILURE_STATUS_CODES:
         raise DecisionModelAuthError(
@@ -107,23 +111,23 @@ async def decision_model_request(
         )
     if response.status_code != 200:
         # Deliberately omit the response body: it can echo request content.
-        raise ValueError(f"Decision model call failed with status code {response.status_code}.")
+        raise DecisionModelError(f"Decision model call failed with status code {response.status_code}.")
 
     try:
         data = response.json()
     except HTTPResponseDecodeError as err:
-        raise ValueError("Failed to parse Decision model response as JSON.") from err
+        raise DecisionModelError("Failed to parse Decision model response as JSON.") from err
 
     answers = data.get("answers") if isinstance(data, dict) else None
     if not isinstance(answers, dict):
-        raise ValueError("Invalid response from the decision model: missing 'answers' object.")
+        raise DecisionModelError("Invalid response from the decision model: missing 'answers' object.")
 
     scores: Dict[str, float] = {}
     for qid in questions:
         answer = answers.get(qid)
         value = answer.get("noul") if isinstance(answer, dict) else None
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0.0 <= value <= 1.0:
-            raise ValueError(
+            raise DecisionModelError(
                 f"Invalid response from the decision model: bad or missing noul answer for question '{qid}'."
             )
         scores[qid] = float(value)

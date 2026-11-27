@@ -58,13 +58,23 @@ RAIL = RailManifest(
                 name="decision model check input",
                 direction=RailDirection.INPUT,
                 action=DECISION_MODEL_CHECK,
-                bindings=(Binding.literal("source", "input"), Binding.context("text", "user_message")),
+                bindings=(
+                    Binding.literal("source", "input"),
+                    Binding.context("text", "user_message"),
+                    Binding.surface_param("rule", "rule"),
+                    Binding.model_param("model_name", "model"),
+                ),
             ),
             RailSurface(
                 name="decision model check output",
                 direction=RailDirection.OUTPUT,
                 action=DECISION_MODEL_CHECK,
-                bindings=(Binding.literal("source", "output"), Binding.context("text", "bot_message")),
+                bindings=(
+                    Binding.literal("source", "output"),
+                    Binding.context("text", "bot_message"),
+                    Binding.surface_param("rule", "rule"),
+                    Binding.model_param("model_name", "model"),
+                ),
             ),
         ),
         requirements=RailRequirements(
@@ -72,7 +82,7 @@ RAIL = RailManifest(
                 EnvVar(
                     name="DECISION_MODEL_API_KEY",
                     required=False,
-                    description="Bearer token, read only when rails.config.decision_model.api_key_env_var names this variable. Authentication is optional.",
+                    description="Bearer token, read only when the selected model's api_key_env_var names this variable. Authentication is optional.",
                 ),
             ),
             services=(ServiceRequirement(name="Configured decision model endpoint", required=True),),
