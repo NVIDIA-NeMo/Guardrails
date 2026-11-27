@@ -28,6 +28,10 @@ def test_public_paths_cannot_import_legacy_model_modules():
         import socket
         import sys
 
+        runner = asyncio.Runner()
+        # Windows creates its event-loop wakeup socket through a loopback connection.
+        runner.get_loop()
+
         blocked = {
             "nemoguardrails.guardrails.model_engine",
             "nemoguardrails.guardrails.base_engine",
@@ -80,7 +84,8 @@ def test_public_paths_cannot_import_legacy_model_modules():
                 await injected.shutdown()
                 await configured.shutdown()
 
-        asyncio.run(exercise())
+        with runner:
+            runner.run(exercise())
         assert not blocked.intersection(sys.modules)
         """
     )
