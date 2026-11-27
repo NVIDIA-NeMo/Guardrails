@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import json
+import re
 from collections.abc import AsyncIterator, Callable
 from pathlib import Path
 from typing import Any, Dict, List
@@ -167,12 +168,49 @@ def _normalize_raw_match_body(body: Any) -> Any:
     return body
 
 
+def _normalize_request_tool_arguments(body: Any) -> Any:
+    """Ignore only JSON whitespace outside strings in valid tool-argument objects.
+
+    Request history now preserves the caller's original formatting. Keep stored
+    cassettes intact, and do not normalize malformed arguments or other content.
+    """
+
+    def reject_constant(value: str) -> None:
+        raise ValueError(f"Invalid JSON constant: {value}")
+
+    if not isinstance(body, dict) or not isinstance(body.get("messages"), list):
+        return body
+    for message in body["messages"]:
+        if not isinstance(message, dict) or message.get("role") != "assistant":
+            continue
+        calls = message.get("tool_calls")
+        if not isinstance(calls, list):
+            continue
+        for call in calls:
+            if not isinstance(call, dict) or call.get("type") != "function":
+                continue
+            function = call.get("function")
+            if not isinstance(function, dict) or not isinstance(arguments := function.get("arguments"), str):
+                continue
+            try:
+                if not isinstance(json.loads(arguments, parse_constant=reject_constant), dict):
+                    continue
+            except (ValueError, RecursionError):
+                continue
+            function["arguments"] = re.sub(
+                r'"(?:\\.|[^"\\])*"|[ \t\r\n]+',
+                lambda match: match[0] if match[0].startswith('"') else "",
+                arguments,
+            )
+    return body
+
+
 def recorded_body_matcher(request_1: Any, request_2: Any) -> None:
     """Compare recorded and replay requests after applying the same scrubbing rules.
 
-    This keeps replay strict about semantic request changes while ignoring
-    redacted secrets and normalization that are intentionally applied at record
-    time.
+    Keep replay strict about semantic request changes while ignoring redacted
+    secrets, smart punctuation, and whitespace outside JSON tool-argument strings.
+    Committed cassettes and actual provider request bodies remain unchanged.
     """
     body_1 = read_body(request_1)
     body_2 = read_body(request_2)
@@ -180,8 +218,8 @@ def recorded_body_matcher(request_1: Any, request_2: Any) -> None:
     json_body_2 = _decode_match_body_json(body_2)
 
     if json_body_1 is not _NON_JSON_BODY and json_body_2 is not _NON_JSON_BODY:
-        matched_1 = normalize_body(_scrub_request_json(json_body_1))
-        matched_2 = normalize_body(_scrub_request_json(json_body_2))
+        matched_1 = _normalize_request_tool_arguments(normalize_body(_scrub_request_json(json_body_1)))
+        matched_2 = _normalize_request_tool_arguments(normalize_body(_scrub_request_json(json_body_2)))
         if matched_1 != matched_2:
             raise AssertionError(
                 "Recorded request JSON body does not match replay request after scrubbing and normalization:\n"

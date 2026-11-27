@@ -31,7 +31,6 @@ from opentelemetry.trace import Tracer
 
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.exceptions import LLMCallException, LLMClientError, LLMTimeoutError
-from nemoguardrails.guardrails.model_engine import ModelEngineError
 from nemoguardrails.guardrails.rail_guard import rail_error_outcome
 from nemoguardrails.guardrails.telemetry import action_span
 from nemoguardrails.guardrails.tool_rail_action import ToolRailAction
@@ -56,8 +55,8 @@ status_bearing_types = pytest.mark.parametrize(
     "make_exc",
     [
         pytest.param(
-            lambda status: ModelEngineError("upstream refused", model_name="guard-model", status=status),
-            id="ModelEngineError",
+            lambda status: LLMCallException("upstream refused", detail="Model invocation failed", status=status),
+            id="detailed-LLMCallException",
         ),
         pytest.param(
             lambda status: LLMCallException("upstream refused", status=status),
@@ -120,9 +119,7 @@ class TestFailsClosed:
         provider_error = LLMClientError(
             0, "upstream https://internal.example/v1/guard rejected key nvapi-abc123secret", model_name="guard-model"
         )
-        exc = ModelEngineError(
-            "Request to model 'guard-model' failed", model_name="guard-model", inner_exception=provider_error
-        )
+        exc = LLMCallException(provider_error, detail="Request to model 'guard-model' failed")
 
         outcome = rail_error_outcome(None, ACTION_NAME, exc)
 
@@ -135,11 +132,7 @@ class TestFailsClosed:
         so ``str(exc)`` here would disclose the internal rail model to an API caller.
         """
         transport_error = LLMTimeoutError(0, "Request timed out: read timed out")
-        exc = ModelEngineError(
-            "Request to model 'internal-guard-model' failed: read timed out",
-            model_name="internal-guard-model",
-            inner_exception=transport_error,
-        )
+        exc = LLMCallException(transport_error, detail="Request to model 'internal-guard-model' failed: read timed out")
 
         outcome = rail_error_outcome(None, ACTION_NAME, exc)
 
@@ -154,11 +147,7 @@ class TestFailsClosed:
         failure, and it reaches the caller through the same streaming violation payload.
         """
         generic_error = LLMClientError(0, "Request failed: bad payload", model_name="internal-guard-model")
-        exc = ModelEngineError(
-            "Request to model 'internal-guard-model' failed: bad payload",
-            model_name="internal-guard-model",
-            inner_exception=generic_error,
-        )
+        exc = LLMCallException(generic_error, detail="Request to model 'internal-guard-model' failed: bad payload")
 
         outcome = rail_error_outcome(None, ACTION_NAME, exc)
 
@@ -221,10 +210,10 @@ class TestLogsAreRedacted:
 
     def test_propagating_path_logs_the_redacted_message(self, caplog):
         """A provider failure carrying a status is logged redacted before it is re-raised."""
-        exc = ModelEngineError(f"auth rejected {self.SECRET}", model_name="guard-model", status=401)
+        exc = LLMCallException(f"auth rejected {self.SECRET}", detail="Model invocation failed", status=401)
 
         with caplog.at_level(logging.ERROR, logger=self.LOGGER):
-            with pytest.raises(ModelEngineError):
+            with pytest.raises(LLMCallException):
                 rail_error_outcome(None, ACTION_NAME, exc)
 
         assert self.SECRET not in caplog.text
@@ -237,10 +226,10 @@ class TestLogsAreRedacted:
         change what an operator sees in a traceback for no security gain — the client-facing
         payload is sanitised separately.
         """
-        exc = ModelEngineError(f"auth rejected {self.SECRET}", model_name="guard-model", status=401)
+        exc = LLMCallException(f"auth rejected {self.SECRET}", detail="Model invocation failed", status=401)
 
         with caplog.at_level(logging.ERROR, logger=self.LOGGER):
-            with pytest.raises(ModelEngineError) as excinfo:
+            with pytest.raises(LLMCallException) as excinfo:
                 rail_error_outcome(None, ACTION_NAME, exc)
 
         assert excinfo.value is exc
@@ -262,9 +251,9 @@ class TestSpanErrorRecording:
         unconditional record cannot pass by fixing only one of them.
         """
         span = MagicMock()
-        exc = ModelEngineError("upstream refused", model_name="guard-model", status=503)
+        exc = LLMCallException("upstream refused", detail="Model invocation failed", status=503)
 
-        with pytest.raises(ModelEngineError):
+        with pytest.raises(LLMCallException):
             rail_error_outcome(span, ACTION_NAME, exc)
 
         span.record_exception.assert_not_called()
@@ -284,30 +273,30 @@ class TestSpanErrorRecording:
     def test_propagating_path_records_once(self):
         """A re-raised provider failure is recorded by the span alone, not twice."""
         tracer, exporter = recording_tracer()
-        exc = ModelEngineError("upstream refused", model_name="guard-model", status=503)
+        exc = LLMCallException("upstream refused", detail="Model invocation failed", status=503)
 
-        with pytest.raises(ModelEngineError):
+        with pytest.raises(LLMCallException):
             with action_span(tracer, ACTION_NAME) as span:
                 rail_error_outcome(span, ACTION_NAME, exc)
 
         events = exception_events(exporter)
         assert len(events) == 1
         # OTEL qualifies non-builtin exception names, so match the suffix rather than
-        # coupling this assertion to the module ModelEngineError happens to live in.
-        assert events[0].attributes["exception.type"].endswith("ModelEngineError")
+        # coupling this assertion to the module LLMCallException happens to live in.
+        assert events[0].attributes["exception.type"].endswith("LLMCallException")
 
     def test_propagating_path_still_marks_the_span_errored(self):
         """Dropping the envelope's own record must not cost the error.type attribute."""
         tracer, exporter = recording_tracer()
-        exc = ModelEngineError("upstream refused", model_name="guard-model", status=503)
+        exc = LLMCallException("upstream refused", detail="Model invocation failed", status=503)
 
-        with pytest.raises(ModelEngineError):
+        with pytest.raises(LLMCallException):
             with action_span(tracer, ACTION_NAME) as span:
                 rail_error_outcome(span, ACTION_NAME, exc)
 
         (finished,) = exporter.get_finished_spans()
         assert finished.attributes is not None
-        assert finished.attributes["error.type"] == "ModelEngineError"
+        assert finished.attributes["error.type"] == "LLMCallException"
 
 
 class DummyToolRail(ToolRailAction):
@@ -351,7 +340,7 @@ class TestToolRailsShareTheEnvelope:
 
     def test_status_bearing_exception_is_reraised(self):
         """A tool rail is held to the same propagation policy, though no shipped one can raise this."""
-        exc = ModelEngineError("upstream refused", model_name="guard-model", status=503)
+        exc = LLMCallException("upstream refused", detail="Model invocation failed", status=503)
 
-        with pytest.raises(ModelEngineError):
+        with pytest.raises(LLMCallException):
             DummyToolRail(exc).check()

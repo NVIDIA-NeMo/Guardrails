@@ -36,7 +36,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
-from nemoguardrails.guardrails.model_engine import ModelEngine
+from nemoguardrails.llm.models.openai_chat import OpenAIChatModel
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.types import LLMResponse
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
@@ -173,11 +173,12 @@ async def _iorails_reply(config_dict: dict, rail: ModelRail, reply: str) -> str:
         iorails = IORails(RailsConfig.from_content(config=config_dict))
 
     async with iorails:
-        for name, engine in iorails.engine_registry._engines.items():
-            if not isinstance(engine, ModelEngine):
+        for name, wrapped in iorails.engine_registry.llms.items():
+            engine = wrapped.wrapped_model
+            if not isinstance(engine, OpenAIChatModel):
                 continue
             content = MAIN_OUTPUT if name == "main" else reply
-            engine.chat_completion = AsyncMock(return_value=LLMResponse(content=content))
+            engine.generate_async = AsyncMock(return_value=LLMResponse(content=content))
 
         response = await iorails.generate_async(messages=[{"role": "user", "content": USER_INPUT}])
         return _assistant_content(response)

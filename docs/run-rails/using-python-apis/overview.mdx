@@ -82,7 +82,7 @@ Construction validates the configuration and compiles the configured rails.
 The synchronous `generate()` and `check()` methods start a short-lived engine for every call, with tracing and metrics turned off.
 They suit scripts.
 In a service, start the engine once and call the asynchronous methods.
-Starting the engine opens an HTTP session for each configured model and starts the request queue, and later `generate_async()`, `stream_async()`, and `check_async()` calls reuse them.
+Starting the engine initializes its runtime and request queue. Built-in OpenAI-compatible model transports open lazily on first use, share connections within the runtime, and are reused by later `generate_async()`, `stream_async()`, and `check_async()` calls.
 
 ```python
 from nemoguardrails import Guardrails, RailsConfig
@@ -96,6 +96,10 @@ async def main():
 ```
 
 If your application has its own startup and shutdown hooks, call `await rails.startup()` and `await rails.shutdown()` from them instead of using `async with`.
+
+IORails opens built-in model HTTP connections on first use. Models in one instance can share connections. Shutdown releases that instance's pool, and a later restart can open fresh connections. If HTTPX marks a client closed before its transport finishes cleanup, shutdown and restart report incomplete cleanup. Recreate the runtime before using it again.
+
+LLMRails uses the framework-owned pool. Applications and custom providers keep ownership of the clients they supply.
 
 For serverless or FaaS handlers, create the `Guardrails` instance in module scope so that warm invocations skip loading and validating the configuration:
 

@@ -381,21 +381,21 @@ UNSAFE_INPUT_JSON = json.dumps({"User Safety": "unsafe", "Safety Categories": "S
 
 
 def _stub_deep_pipeline(iorails, main_llm_response="Hello", input_safe=True):
-    """Mock ModelEngine.chat_completion so the whole chain runs, spans and all, without HTTP."""
-    from nemoguardrails.guardrails.model_engine import ModelEngine
+    """Mock OpenAIChatModel.generate_async so the whole chain runs, spans and all, without HTTP."""
+    from nemoguardrails.llm.models.instrumented import InstrumentedLLMModel
 
     input_json = SAFE_INPUT_JSON if input_safe else UNSAFE_INPUT_JSON
-    for name, engine in iorails.engine_registry._engines.items():
-        if isinstance(engine, ModelEngine):
+    for name, engine in iorails.engine_registry.llms.items():
+        if isinstance(engine, InstrumentedLLMModel):
             if name == "main":
-                engine.chat_completion = AsyncMock(return_value=LLMResponse(content=main_llm_response))
+                engine.wrapped_model.generate_async = AsyncMock(return_value=LLMResponse(content=main_llm_response))
             elif name == "content_safety":
                 # Content safety output parser needs Response Safety field
-                engine.chat_completion = AsyncMock(
+                engine.wrapped_model.generate_async = AsyncMock(
                     return_value=LLMResponse(content=SAFE_OUTPUT_JSON if input_safe else input_json)
                 )
             else:
-                engine.chat_completion = AsyncMock(return_value=LLMResponse(content=input_json))
+                engine.wrapped_model.generate_async = AsyncMock(return_value=LLMResponse(content=input_json))
 
 
 class TestSpanHierarchy:
@@ -506,15 +506,15 @@ class TestSpanHierarchy:
     @pytest.mark.asyncio
     async def test_action_span_records_engine_error(self, iorails_tracing, exporter):
         """When the engine raises, the action span must record it (not swallow it)."""
-        from nemoguardrails.guardrails.model_engine import ModelEngine
+        from nemoguardrails.llm.models.instrumented import InstrumentedLLMModel
 
         # CompiledRail catches and converts to a blocking outcome, but the action span
         # must still reflect the error.
-        for name, engine in iorails_tracing.engine_registry._engines.items():
-            if isinstance(engine, ModelEngine) and name == "content_safety":
-                engine.chat_completion = AsyncMock(side_effect=RuntimeError("LLM down"))
-            elif isinstance(engine, ModelEngine):
-                engine.chat_completion = AsyncMock(return_value=LLMResponse(content=SAFE_INPUT_JSON))
+        for name, engine in iorails_tracing.engine_registry.llms.items():
+            if isinstance(engine, InstrumentedLLMModel) and name == "content_safety":
+                engine.wrapped_model.generate_async = AsyncMock(side_effect=RuntimeError("LLM down"))
+            elif isinstance(engine, InstrumentedLLMModel):
+                engine.wrapped_model.generate_async = AsyncMock(return_value=LLMResponse(content=SAFE_INPUT_JSON))
 
         result = await iorails_tracing.generate_async(messages=[{"role": "user", "content": "hi"}])
         # The rail broke rather than fired, so the caller is told so; the span still carries the error.
@@ -722,20 +722,20 @@ def _make_output_streaming_tracing_config(*, stream_first=True):
     return base
 
 
-async def _mock_chunks_stream(model_type, messages, **kwargs):
+async def _mock_chunks_stream(messages, **kwargs):
     """stream_model_call-level mock yielding three LLMResponseChunk objects."""
     for text in ["Hello", " ", "world"]:
         yield LLMResponseChunk(delta_content=text)
 
 
 async def _engine_default_stream(messages, **kwargs):
-    """ModelEngine.stream_chat_completion-level mock for the main LLM."""
+    """OpenAIChatModel.stream_async-level mock for the main LLM."""
     for text in ["Hello", " from", " the", " stream"]:
         yield LLMResponseChunk(delta_content=text)
 
 
 async def _engine_failing_stream(messages, **kwargs):
-    """ModelEngine.stream_chat_completion-level mock that raises mid-stream."""
+    """OpenAIChatModel.stream_async-level mock that raises mid-stream."""
     yield LLMResponseChunk(delta_content="Hello")
     raise RuntimeError("stream broke")
 
@@ -747,22 +747,22 @@ def _stub_deep_streaming_pipeline(iorails, main_stream=None, input_safe=True):
     the main engine uses ``stream_chat_completion`` so the LLM span in
     ``stream_model_call`` sees the real wrapper code.
     """
-    from nemoguardrails.guardrails.model_engine import ModelEngine
+    from nemoguardrails.llm.models.instrumented import InstrumentedLLMModel
 
     if main_stream is None:
         main_stream = _engine_default_stream
 
     input_json = SAFE_INPUT_JSON if input_safe else UNSAFE_INPUT_JSON
-    for name, engine in iorails.engine_registry._engines.items():
-        if isinstance(engine, ModelEngine):
+    for name, engine in iorails.engine_registry.llms.items():
+        if isinstance(engine, InstrumentedLLMModel):
             if name == "main":
-                engine.stream_chat_completion = main_stream
+                engine.wrapped_model.stream_async = main_stream
             elif name == "content_safety":
-                engine.chat_completion = AsyncMock(
+                engine.wrapped_model.generate_async = AsyncMock(
                     return_value=LLMResponse(content=SAFE_OUTPUT_JSON if input_safe else input_json)
                 )
             else:
-                engine.chat_completion = AsyncMock(return_value=LLMResponse(content=input_json))
+                engine.wrapped_model.generate_async = AsyncMock(return_value=LLMResponse(content=input_json))
 
 
 @pytest_asyncio.fixture
@@ -803,7 +803,7 @@ class TestStreamAsyncSpanHierarchy:
     async def test_creates_request_span(self, iorails_streaming_input_only_tracing, exporter):
         iorails = iorails_streaming_input_only_tracing
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
-        iorails.engine_registry.stream_model_call = _mock_chunks_stream
+        iorails.engine_registry.llms["main"].wrapped_model.stream_async = _mock_chunks_stream
 
         chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
         assert chunks == ["Hello", " ", "world"]
@@ -871,7 +871,7 @@ class TestStreamAsyncSpanHierarchy:
 
         request_span = next(s for s in spans if s.name == "guardrails.request")
         assert request_span.status.status_code == StatusCode.ERROR
-        assert request_span.attributes["error.type"] == "RuntimeError"
+        assert request_span.attributes["error.type"] == "LLMCallException"
 
         main_llm_span = next(
             s
@@ -927,7 +927,7 @@ class TestStreamAsyncSpanHierarchy:
         """With tracing off, streaming produces zero spans but still works."""
         iorails = iorails_streaming_no_tracing
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
-        iorails.engine_registry.stream_model_call = _mock_chunks_stream
+        iorails.engine_registry.llms["main"].wrapped_model.stream_async = _mock_chunks_stream
 
         chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
         assert chunks == ["Hello", " ", "world"]
@@ -1301,7 +1301,7 @@ class TestStreamAsyncRequestMetrics:
         no errors, stream.active back to 0, no rejections."""
         iorails = iorails_streaming_input_only_tracing
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
-        iorails.engine_registry.stream_model_call = _mock_chunks_stream
+        iorails.engine_registry.llms["main"].wrapped_model.stream_async = _mock_chunks_stream
 
         chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
         assert chunks == ["Hello", " ", "world"]
@@ -1325,7 +1325,7 @@ class TestStreamAsyncRequestMetrics:
         """
         iorails = iorails_streaming_input_only_tracing
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
-        iorails.engine_registry.stream_model_call = _mock_chunks_stream
+        iorails.engine_registry.llms["main"].wrapped_model.stream_async = _mock_chunks_stream
 
         saturate_stream_semaphore(iorails)
         with pytest.raises(StreamingCapacityExceededError, match="Streaming concurrency limit of 256 reached"):
@@ -1353,7 +1353,7 @@ class TestStreamAsyncRequestMetrics:
         """
         iorails = iorails_streaming_input_only_tracing
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
-        iorails.engine_registry.stream_model_call = _mock_chunks_stream
+        iorails.engine_registry.llms["main"].wrapped_model.stream_async = _mock_chunks_stream
 
         saturate_stream_semaphore(iorails)
         with pytest.raises(StreamingCapacityExceededError, match="Streaming concurrency limit of 256 reached"):
@@ -1374,7 +1374,7 @@ class TestStreamAsyncRequestMetrics:
         """
         iorails = iorails_streaming_input_only_tracing
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
-        iorails.engine_registry.stream_model_call = _mock_chunks_stream
+        iorails.engine_registry.llms["main"].wrapped_model.stream_async = _mock_chunks_stream
 
         iterator = iorails.stream_async([{"role": "user", "content": "hi"}]).__aiter__()
 
@@ -1424,7 +1424,7 @@ class TestStreamAsyncRequestMetrics:
         """
         iorails = iorails_streaming_no_tracing
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
-        iorails.engine_registry.stream_model_call = _mock_chunks_stream
+        iorails.engine_registry.llms["main"].wrapped_model.stream_async = _mock_chunks_stream
 
         saturate_stream_semaphore(iorails)
         with pytest.raises(StreamingCapacityExceededError):
@@ -1451,7 +1451,7 @@ class TestStreamAsyncRequestMetrics:
         points = collect_metric_points(metric_reader)
         assert points["guardrails.requests"][0].value == 1
         assert points["guardrails.requests.errors"][0].value == 1
-        assert points["guardrails.requests.errors"][0].attributes["error.type"] == "RuntimeError"
+        assert points["guardrails.requests.errors"][0].attributes["error.type"] == "LLMCallException"
         assert points["guardrails.request.duration"][0].value == 1
 
     @pytest.mark.asyncio
@@ -1792,7 +1792,7 @@ class TestRequestsActiveAggregate:
         """
         iorails = iorails_streaming_input_only_tracing
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
-        iorails.engine_registry.stream_model_call = _mock_chunks_stream
+        iorails.engine_registry.llms["main"].wrapped_model.stream_async = _mock_chunks_stream
 
         iterator = iorails.stream_async([{"role": "user", "content": "hi"}]).__aiter__()
 
@@ -1834,7 +1834,7 @@ class TestRequestsActiveAggregate:
             async with iorails:
                 iorails._do_generate = _gated_generate(nonstream_gate)
                 iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
-                iorails.engine_registry.stream_model_call = _mock_chunks_stream
+                iorails.engine_registry.llms["main"].wrapped_model.stream_async = _mock_chunks_stream
 
                 # Launch one executing + one queued non-streaming request.
                 nonstream_tasks = [
@@ -1873,14 +1873,14 @@ class TestRequestsActiveAggregate:
 
 def _stub_deep_pipeline_with_usage(iorails):
     """Like ``_stub_deep_pipeline`` but attaches ``UsageInfo`` to every
-    ``LLMResponse`` so the LLM-call metrics emitted by ``EngineRegistry.model_call``
+    ``LLMResponse`` so the LLM-call metrics emitted by ``ModelRuntime.model_call``
     have something to record.
 
     The token counts are arbitrary and chosen to be distinct per model so
     tests asserting "metric fired for this model" can also check the
     recorded sum is the expected value (catching a label-shuffle bug).
     """
-    from nemoguardrails.guardrails.model_engine import ModelEngine
+    from nemoguardrails.llm.models.instrumented import InstrumentedLLMModel
 
     # (model_name → (input_tokens, output_tokens, response_content))
     per_model = {
@@ -1889,10 +1889,10 @@ def _stub_deep_pipeline_with_usage(iorails):
         "topic_control": (30, 5, SAFE_INPUT_JSON),
     }
 
-    for name, engine in iorails.engine_registry._engines.items():
-        if isinstance(engine, ModelEngine):
+    for name, engine in iorails.engine_registry.llms.items():
+        if isinstance(engine, InstrumentedLLMModel):
             input_tokens, output_tokens, content = per_model.get(name, (10, 10, SAFE_INPUT_JSON))
-            engine.chat_completion = AsyncMock(
+            engine.wrapped_model.generate_async = AsyncMock(
                 return_value=LLMResponse(
                     content=content,
                     usage=UsageInfo(
@@ -1906,10 +1906,10 @@ def _stub_deep_pipeline_with_usage(iorails):
 
 class TestGenerateAsyncLLMMetrics:
     """End-to-end coverage for the OTEL GenAI client metrics emitted from
-    ``EngineRegistry.model_call`` during a real ``IORails.generate_async``
+    ``ModelRuntime.model_call`` during a real ``IORails.generate_async``
     invocation.
 
-    Mocks at the ModelEngine layer (not the EngineRegistry layer) so the
+    Mocks at the shared model layer (not the EngineRegistry layer) so the
     full RailsManager → RailAction → EngineRegistry → metric-emission
     chain executes.  A safe end-to-end call drives multiple LLM calls
     (input rails: content_safety + topic_control; main generation;
@@ -2163,7 +2163,7 @@ class TestContentCaptureLegacyFormat:
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         # Mock at the engine level (not engine_registry.model_call) so the real
         # model_call wrapper runs, creating the LLM CLIENT span + capturing content.
-        iorails.engine_registry._engines["main"].chat_completion = AsyncMock(
+        iorails.engine_registry.llms["main"].wrapped_model.generate_async = AsyncMock(
             return_value=LLMResponse(content="raw model answer")
         )
         iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.block(reason="unsafe response"))

@@ -70,13 +70,13 @@ class MyFramework:
 
 ### `create_model`
 
-Called once per `models:` entry in `config.yml` when `LLMRails` builds its task models. `model_name` is the value of `model:`, `provider_name` is the value of `engine:`, and `model_kwargs` carries everything from the entry's `parameters` block plus a few platform keys like `mode`. Your framework decides what `provider_name` means. Typically, you use it to dispatch to a specific `LLMModel` class or to pick provider-specific defaults. Return any object that implements `LLMModel`. For details, refer to [Custom LLM Model](/configure-guardrails/custom-initialization/custom-llm-model).
+Called for each selected generation-model entry in `config.yml` when either engine builds its models. An injected main model skips construction of the configured main. `model_name` is the value of `model:`, `provider_name` is the value of `engine:`, and `model_kwargs` carries everything from the entry's `parameters` block plus a few platform keys like `mode`. Your framework decides what `provider_name` means. Typically, you use it to dispatch to a specific `LLMModel` class or to pick provider-specific defaults. Return any object that implements `LLMModel`. For details, refer to [Custom LLM Model](/configure-guardrails/custom-initialization/custom-llm-model).
 
 The framework owns construction. It can cache and reuse expensive resources, such as HTTP clients, gRPC channels, and auth tokens. It can also inject defaults for headers, timeouts, and retries, or short-circuit on a registered custom provider. Review `DefaultFramework` and `LangChainFramework` for two contrasting implementations.
 
 ### `register_provider`
 
-Called by user code (usually from a `config.py`) to add a custom class your framework should dispatch to. Implementations typically just record the class in an in-memory dict; `create_model` then checks that dict before falling back to its built-in dispatch.
+Called by user code to add a custom class your framework should dispatch to. For both engines, register providers in application startup before constructing `Guardrails`. LLMRails can also run registration from `config.py`; IORails ignores that file. Implementations typically just record the class in an in-memory dict; `create_model` then checks that dict before falling back to its built-in dispatch.
 
 ### `get_provider_names`
 
@@ -94,6 +94,8 @@ Returns the list of provider names this framework knows about, including built-i
 After `reset`, the instance must remain usable. New resources are constructed lazily on the next `create_model` call.
 
 Today `reset` is invoked only by the test suite; the runtime does not call it on `nemoguardrails server` shutdown. Implement it for test isolation, not for production cleanup.
+
+Custom frameworks own their model clients. Document how the application should release those clients during shutdown. IORails manages the per-runtime HTTP pool for its built-in OpenAI-compatible models.
 
 ## Minimal Working Example
 
@@ -220,7 +222,7 @@ After `register_framework("my", MyFramework())`, the framework is selectable in 
    ```
 
    The registry reads `NEMOGUARDRAILS_LLM_FRAMEWORK` at module load and uses it as the active framework name.
-2. Programmatic flip in `config.py`. Call `set_default_framework("my")` after registering. All subsequent `LLMRails` constructions use it.
+2. Programmatic selection. Call `set_default_framework("my")` after registering in application startup. Subsequent constructions on both engines use it. LLMRails also supports this setup in `config.py`; IORails does not import that file.
 3. Targeted dispatch. If you want different frameworks for different model entries, route directly with `framework.create_model` in your own initialization code (advanced; not the standard path).
 
 `config.yml` entries do not name the framework; they name a provider. The framework is implicit in whichever one is active.
@@ -275,7 +277,7 @@ The two built-in names always appear in this hint because the registry knows the
 
 1. Treat `reset` as a hard contract, not a hint. Test it. Pooled HTTP connections that survive across tests cause surprising flakes elsewhere.
 2. Prefer composition over inheritance. `MyFramework` does not need to subclass `DefaultFramework`. The protocol is small enough to implement from scratch.
-3. Pool HTTP clients on the framework when multiple `models:` entries share a backend. `create_model` runs once per entry at `LLMRails` startup, so a model can safely build its own client. When two entries point at the same backend, only the framework can deduplicate them. `DefaultFramework._get_or_create_client` keys clients by `(base_url, api_key, ...)` for exactly this case.
+3. Pool HTTP clients when multiple model entries share a backend. Document how applications close framework-owned clients. Defer transport allocation until use so later constructor failures do not leak asynchronous resources.
 4. Do not import LangChain in a default-framework-style implementation. The whole point of swapping the framework layer is to avoid pulling in dependencies you do not need. Keep your imports tight.
 5. Document your framework's provider taxonomy. `get_provider_names` is what `nemoguardrails find_providers` shows users.
 

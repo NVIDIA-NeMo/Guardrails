@@ -36,7 +36,8 @@ from nemoguardrails.guardrails.guardrails_types import (
     set_new_request_id,
 )
 from nemoguardrails.guardrails.iorails import IORails
-from nemoguardrails.guardrails.model_engine import ModelEngine
+from nemoguardrails.llm.clients.base import HTTPResponse
+from nemoguardrails.llm.clients.openai_compatible import OpenAICompatibleClient
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.types import LLMResponse
 from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG, NEMOGUARDS_CONFIG
@@ -359,7 +360,7 @@ class TestMultipleConcurrentRequests:
 
 
 class TestEndToEndPropagation:
-    """Request ID propagates through the full stack: IORails -> RailsManager -> EngineRegistry -> ModelEngine."""
+    """Request ID propagates through the full stack: IORails -> RailsManager -> ModelRuntime -> shared model client."""
 
     @pytest_asyncio.fixture
     async def iorails_content_safety(self):
@@ -372,7 +373,7 @@ class TestEndToEndPropagation:
 
     @pytest.mark.asyncio
     async def test_same_id_from_iorails_through_model_engine(self, iorails_content_safety):
-        """The request ID set in IORails.generate_async is visible in both RailsManager and ModelEngine."""
+        """The request ID set in IORails.generate_async is visible in both RailsManager and shared model client."""
         engine = iorails_content_safety
         captured_ids: list[tuple[str, str]] = []
 
@@ -391,17 +392,13 @@ class TestEndToEndPropagation:
         engine.rails_manager.is_input_safe = capturing_is_input_safe
         engine.rails_manager.is_output_safe = capturing_is_output_safe
 
-        # --- Patch ModelEngine.call to capture the ID at the HTTP layer ---
-        async def capturing_call(self_engine, messages, **kwargs):
-            captured_ids.append((f"model_engine:{self_engine.model_name}", get_request_id()))
+        # --- Patch shared model client.call to capture the ID at the HTTP layer ---
+        async def capturing_call(self_client, model, messages, **kwargs):
+            captured_ids.append((f"model_client:{model}", get_request_id()))
             safe_response = '{"User Safety": "safe", "Response Safety": "safe"}'
-            return {"choices": [{"message": {"content": safe_response}}]}
+            return HTTPResponse(body={"choices": [{"message": {"content": safe_response}}]}, headers={})
 
-        with patch.object(ModelEngine, "call", capturing_call):
-            # Skip the "not started" check since we don't call engine.start()
-            for model_engine in engine.engine_registry._engines.values():
-                model_engine._running = True
-
+        with patch.object(OpenAICompatibleClient, "chat_completion", capturing_call):
             await engine.generate_async(messages=[{"role": "user", "content": "hello"}])
 
         # We expect 5 captures:
@@ -413,7 +410,7 @@ class TestEndToEndPropagation:
         assert len(captured_ids) == 5, f"Expected 5 captures, got {len(captured_ids)}: {captured_ids}"
 
         ids = [rid for _, rid in captured_ids]
-        # Every layer — RailsManager and ModelEngine — saw the same request ID
+        # Every layer — RailsManager and shared model client — saw the same request ID
         assert len(set(ids)) == 1, f"Request IDs differ across layers: {captured_ids}"
         # And it's a valid hex ID
         assert REQUEST_ID_PATTERN.match(ids[0]), f"Invalid request ID format: {ids[0]}"

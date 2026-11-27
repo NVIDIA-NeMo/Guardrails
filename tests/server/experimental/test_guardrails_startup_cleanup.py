@@ -24,7 +24,6 @@ import pytest_asyncio
 
 from nemoguardrails import Guardrails
 from nemoguardrails.guardrails import _lifecycle
-from nemoguardrails.guardrails.base_engine import BaseEngine
 from nemoguardrails.server.experimental._application import create_proxy_application
 from nemoguardrails.server.experimental._runtime import get_runtime
 from nemoguardrails.server.experimental.providers.openai.integration import create_openai_chat_integration
@@ -32,12 +31,11 @@ from nemoguardrails.server.experimental.rails import ConfigEntry, _repository
 from nemoguardrails.server.experimental.rails._repository import GuardrailsRepository
 
 
-class StartupEngine(BaseEngine):
+class StartupResources:
     """Acquire an HTTPX owner before startup fails or is cancelled."""
 
     def __init__(self, failure, cleanup):
         """Control startup interruption and whether cleanup can complete."""
-        super().__init__()
         self.failure = failure
         self.cleanup = cleanup
         self.started = asyncio.Event()
@@ -54,7 +52,7 @@ class StartupEngine(BaseEngine):
             await asyncio.Event().wait()
         raise self.start_error
 
-    async def stop(self):
+    async def close(self):
         """Keep the client open until cleanup is permitted to finish."""
         self.stop_attempts += 1
         if not self.release.is_set():
@@ -72,13 +70,16 @@ async def startup_owner(monkeypatch, failure, cleanup):
 
     monkeypatch.setattr(_lifecycle, "_ROLLBACK_TIMEOUT_SECONDS", 0.01)
     monkeypatch.setattr(_repository, "_SHUTDOWN_TIMEOUT_SECONDS", 0.01)
-    probe = StartupEngine(failure, cleanup)
+    probe = StartupResources(failure, cleanup)
     facades = []
 
     def create_facade(**kwargs):
         facade = Guardrails(**kwargs)
         if not facades:
-            facade.rails_engine.engine_registry._engines = {"startup-probe": probe}
+            resources = facade.rails_engine.engine_registry.resources
+            resources.start = probe.start
+            assert resources._owned_clients is not None
+            resources._owned_clients.clients[("startup",)] = probe
         facades.append(facade)
         return facade
 
@@ -102,12 +103,12 @@ async def failed_startup(start, probe, failure):
         await probe.started.wait()
         if failure == "cancel":
             task.cancel("startup interrupted")
-        with pytest.raises(asyncio.CancelledError if failure == "cancel" else RuntimeError) as caught:
+        with pytest.raises(asyncio.CancelledError if failure == "cancel" else ValueError) as caught:
             await task
     if failure == "cancel":
         assert task.cancelled()
     else:
-        assert caught.value.__cause__ is probe.start_error
+        assert caught.value is probe.start_error
 
 
 @pytest.mark.asyncio

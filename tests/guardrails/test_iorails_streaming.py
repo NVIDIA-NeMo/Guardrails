@@ -19,8 +19,8 @@ import asyncio
 import json
 import logging
 import warnings
-from contextlib import suppress
-from unittest.mock import AsyncMock, MagicMock, patch
+from contextlib import aclosing, suppress
+from unittest.mock import AsyncMock, patch
 
 import pytest
 import pytest_asyncio
@@ -34,12 +34,12 @@ from nemoguardrails.guardrails.iorails import (
     _is_stream_error_chunk,
     _TurnConversation,
 )
-from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.guardrails.rail_guard import rail_error_outcome
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions
 from nemoguardrails.types import LLMResponseChunk, ToolCall, ToolCallChunk, ToolCallFunction, UsageInfo
 from tests.guardrails.async_helpers import started_iorails
+from tests.guardrails.model_helpers import mock_model_http_client
 from tests.guardrails.rail_stubs import (
     allow_with_mask_pending,
     bot_message_rewrite,
@@ -131,11 +131,22 @@ def _blocked_unless(safe: bool) -> RailResult:
     return RailResult.block(reason="blocked")
 
 
+def _model_stream(stream):
+    """Adapt orchestration fixtures at the shared model boundary."""
+
+    async def generate(messages, **kwargs):
+        async with aclosing(stream("main", messages, **kwargs)) as chunks:
+            async for chunk in chunks:
+                yield chunk
+
+    return generate
+
+
 def _wire_mocks(iorails, *, input_safe=True, output_safe=True, stream=_mock_stream):
     """Attach standard mocks for input rails, output rails, and LLM streaming."""
     iorails.rails_manager.is_input_safe = AsyncMock(return_value=_blocked_unless(input_safe))
     iorails.rails_manager.is_output_safe = AsyncMock(return_value=_blocked_unless(output_safe))
-    iorails.engine_registry.stream_model_call = stream
+    iorails.engine_registry.llms["main"].wrapped_model.stream_async = _model_stream(stream)
 
 
 @pytest_asyncio.fixture
@@ -564,7 +575,7 @@ class TestStreamAsyncConcurrency:
 
 
 def _build_sse_streaming_mock(deltas, headers=None):
-    """Build an aiohttp-like response mock that yields SSE lines for the given deltas.
+    """Build an HTTPX response mock that yields SSE lines for the given deltas.
 
     Each delta is a dict like ``{"content": "Hi"}`` or ``{"reasoning_content": "thinking"}``
     that becomes a ``data: {"choices":[{"delta": <delta>}]}\\n`` line. Always terminates
@@ -573,31 +584,15 @@ def _build_sse_streaming_mock(deltas, headers=None):
     lines = []
     for delta in deltas:
         payload = json.dumps({"choices": [{"delta": delta}]})
-        lines.append(f"data: {payload}\n".encode())
-    lines.append(b"data: [DONE]\n")
+        lines.append(f"data: {payload}\n\n".encode())
+    lines.append(b"data: [DONE]\n\n")
 
-    line_iter = iter(lines)
-
-    async def _readline():
-        return next(line_iter, b"")
-
-    mock_content = MagicMock()
-    mock_content.readline = _readline
-
-    mock_response = AsyncMock()
-    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-    mock_response.status = 200
-    mock_response.content = mock_content
-    mock_response.headers = headers if headers is not None else {}
-
-    mock_client = AsyncMock()
-    mock_client.post = MagicMock(return_value=mock_response)
-    return mock_client
+    return mock_model_http_client(raw_lines=lines, headers=headers)
 
 
 class TestStreamAsyncEndToEnd:
-    """Full chain: raw SSE bytes -> ModelEngine.stream_call._parse_chat_completion_chunk
-    -> LLMResponseChunk -> EngineRegistry.stream_model_call -> IORails._generation_task pushes
+    """Full chain: raw SSE bytes -> OpenAIChatModel.stream_async
+    -> LLMResponseChunk -> ModelRuntime.stream_model_call -> IORails._generation_task pushes
     chunk.delta_content -> caller sees text chunks. Mocks at the HTTP boundary so the
     SSE-parsing path is exercised on the way through.
     """
@@ -606,9 +601,10 @@ class TestStreamAsyncEndToEnd:
     async def test_content_chunks_full_chain(self, iorails_input_only):
         iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
 
-        main_engine = iorails_input_only.engine_registry._get_engine("main", ModelEngine)
-        main_engine._client = _build_sse_streaming_mock([{"content": "Hello"}, {"content": " "}, {"content": "world"}])
-        main_engine._running = True
+        main_engine = iorails_input_only.engine_registry.llms["main"].wrapped_model
+        main_engine._client._client = _build_sse_streaming_mock(
+            [{"content": "Hello"}, {"content": " "}, {"content": "world"}]
+        )
 
         chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
 
@@ -616,13 +612,13 @@ class TestStreamAsyncEndToEnd:
 
     @pytest.mark.asyncio
     async def test_reasoning_deltas_dropped_from_caller_output(self, iorails_input_only):
-        """Reasoning deltas pass through ModelEngine as LLMResponseChunk.delta_reasoning,
+        """Reasoning deltas pass through the shared model as LLMResponseChunk.delta_reasoning,
         but IORails drops them — the caller only sees content text.
         """
         iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
 
-        main_engine = iorails_input_only.engine_registry._get_engine("main", ModelEngine)
-        main_engine._client = _build_sse_streaming_mock(
+        main_engine = iorails_input_only.engine_registry.llms["main"].wrapped_model
+        main_engine._client._client = _build_sse_streaming_mock(
             [
                 {"reasoning_content": "let me think"},
                 {"content": "The"},
@@ -631,7 +627,6 @@ class TestStreamAsyncEndToEnd:
                 {"content": " is 42"},
             ]
         )
-        main_engine._running = True
 
         chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
 
@@ -640,7 +635,7 @@ class TestStreamAsyncEndToEnd:
 
 
 def _build_tool_call_sse_mock(*, content_deltas=None, tool_call_chunks, finish_chunk=None):
-    """Build an aiohttp mock that streams optional content then tool-call SSE chunks.
+    """Build an HTTPX mock that streams optional content then tool-call SSE chunks.
 
     ``tool_call_chunks`` is a list of raw SSE body dicts (already shaped as
     ``{"choices": [{"delta": {"tool_calls": [...]}, "finish_reason": ...}]}``)
@@ -651,27 +646,14 @@ def _build_tool_call_sse_mock(*, content_deltas=None, tool_call_chunks, finish_c
     lines = []
     for text in content_deltas or []:
         payload = json.dumps({"choices": [{"delta": {"content": text}}]})
-        lines.append(f"data: {payload}\n".encode())
+        lines.append(f"data: {payload}\n\n".encode())
     for chunk_body in tool_call_chunks:
-        lines.append(f"data: {json.dumps(chunk_body)}\n".encode())
+        lines.append(f"data: {json.dumps(chunk_body)}\n\n".encode())
     if finish_chunk is not None:
-        lines.append(f"data: {json.dumps(finish_chunk)}\n".encode())
-    lines.append(b"data: [DONE]\n")
+        lines.append(f"data: {json.dumps(finish_chunk)}\n\n".encode())
+    lines.append(b"data: [DONE]\n\n")
 
-    line_iter = iter(lines)
-
-    async def _readline():
-        return next(line_iter, b"")
-
-    mock_content = MagicMock()
-    mock_content.readline = _readline
-    mock_response = AsyncMock()
-    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-    mock_response.status = 200
-    mock_response.content = mock_content
-    mock_client = AsyncMock()
-    mock_client.post = MagicMock(return_value=mock_response)
-    return mock_client
+    return mock_model_http_client(raw_lines=lines)
 
 
 # Single NIM-style chunk: complete args on the finish_reason chunk.
@@ -709,7 +691,7 @@ class TestStreamAsyncToolCalling:
             captured_kwargs.update(kwargs)
             yield LLMResponseChunk(delta_content="ok")
 
-        iorails_input_only.engine_registry.stream_model_call = _capturing_stream
+        iorails_input_only.engine_registry.llms["main"].wrapped_model.stream_async = _model_stream(_capturing_stream)
         iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow(reason=None))
 
         await _collect(
@@ -726,9 +708,8 @@ class TestStreamAsyncToolCalling:
     async def test_tool_call_only_yields_terminal_event(self, iorails_input_only):
         """A tool-call-only response yields a single terminal structured chunk containing tool_calls."""
         iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
-        main_engine = iorails_input_only.engine_registry._get_engine("main", ModelEngine)
-        main_engine._client = _build_tool_call_sse_mock(tool_call_chunks=[_NIM_TOOL_CALL_CHUNK])
-        main_engine._running = True
+        main_engine = iorails_input_only.engine_registry.llms["main"].wrapped_model
+        main_engine._client._client = _build_tool_call_sse_mock(tool_call_chunks=[_NIM_TOOL_CALL_CHUNK])
 
         chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
 
@@ -741,12 +722,11 @@ class TestStreamAsyncToolCalling:
     async def test_text_and_tool_calls_text_first_then_terminal_event(self, iorails_input_only):
         """Content chunks come first; terminal tool-call event follows after all text."""
         iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
-        main_engine = iorails_input_only.engine_registry._get_engine("main", ModelEngine)
-        main_engine._client = _build_tool_call_sse_mock(
+        main_engine = iorails_input_only.engine_registry.llms["main"].wrapped_model
+        main_engine._client._client = _build_tool_call_sse_mock(
             content_deltas=["Checking", " weather"],
             tool_call_chunks=[_NIM_TOOL_CALL_CHUNK],
         )
-        main_engine._running = True
 
         chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
 
@@ -760,7 +740,7 @@ class TestStreamAsyncToolCalling:
     async def test_fragmented_args_assembled_into_complete_call(self, iorails_input_only):
         """OpenAI-style argument fragments are concatenated and parsed into complete arguments."""
         iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
-        main_engine = iorails_input_only.engine_registry._get_engine("main", ModelEngine)
+        main_engine = iorails_input_only.engine_registry.llms["main"].wrapped_model
 
         frag1 = {
             "choices": [
@@ -782,11 +762,10 @@ class TestStreamAsyncToolCalling:
         frag3 = {"choices": [{"delta": {"tool_calls": [{"index": 0, "function": {"arguments": ': "Paris"}'}}]}}]}
         finish = {"choices": [{"delta": {}, "finish_reason": "tool_calls"}]}
 
-        main_engine._client = _build_tool_call_sse_mock(
+        main_engine._client._client = _build_tool_call_sse_mock(
             tool_call_chunks=[frag1, frag2, frag3],
             finish_chunk=finish,
         )
-        main_engine._running = True
 
         chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
 
@@ -799,9 +778,8 @@ class TestStreamAsyncToolCalling:
         """Tool-call-only stream skips is_output_safe (no text content to check)."""
         iorails_stream_first.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         iorails_stream_first.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.allow())
-        main_engine = iorails_stream_first.engine_registry._get_engine("main", ModelEngine)
-        main_engine._client = _build_tool_call_sse_mock(tool_call_chunks=[_NIM_TOOL_CALL_CHUNK])
-        main_engine._running = True
+        main_engine = iorails_stream_first.engine_registry.llms["main"].wrapped_model
+        main_engine._client._client = _build_tool_call_sse_mock(tool_call_chunks=[_NIM_TOOL_CALL_CHUNK])
 
         chunks = await _collect(iorails_stream_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
 
@@ -831,9 +809,8 @@ class TestStreamAsyncToolCalling:
             ]
         }
         iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
-        main_engine = iorails_input_only.engine_registry._get_engine("main", ModelEngine)
-        main_engine._client = _build_tool_call_sse_mock(tool_call_chunks=[forced_chunk])
-        main_engine._running = True
+        main_engine = iorails_input_only.engine_registry.llms["main"].wrapped_model
+        main_engine._client._client = _build_tool_call_sse_mock(tool_call_chunks=[forced_chunk])
 
         chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
 
@@ -844,7 +821,7 @@ class TestStreamAsyncToolCalling:
 
     @pytest.mark.asyncio
     async def test_model_engine_accumulates_tool_calls(self, iorails_input_only):
-        """Ensure ModelEngine.stream_call() accumulates all delta_tool_calls before
+        """Ensure the shared adapter accumulates all delta_tool_calls before
         emitting once after the stream ends.
         """
         call_a = ToolCall(id="a", type="function", function=ToolCallFunction(name="fn_a", arguments={"x": 1}))
@@ -855,7 +832,7 @@ class TestStreamAsyncToolCalling:
             yield LLMResponseChunk(delta_tool_calls=[call_a])
             yield LLMResponseChunk(finish_reason="tool_calls", delta_tool_calls=[call_a, call_b])
 
-        iorails_input_only.engine_registry.stream_model_call = _two_emission_stream
+        iorails_input_only.engine_registry.llms["main"].wrapped_model.stream_async = _model_stream(_two_emission_stream)
         iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
 
         chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
@@ -870,12 +847,11 @@ class TestStreamAsyncToolCalling:
         """A blocked output rail suppresses the terminal tool-call chunk."""
         iorails_stream_first.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         iorails_stream_first.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.block(reason="blocked"))
-        main_engine = iorails_stream_first.engine_registry._get_engine("main", ModelEngine)
-        main_engine._client = _build_tool_call_sse_mock(
+        main_engine = iorails_stream_first.engine_registry.llms["main"].wrapped_model
+        main_engine._client._client = _build_tool_call_sse_mock(
             content_deltas=["Some text"],
             tool_call_chunks=[_NIM_TOOL_CALL_CHUNK],
         )
-        main_engine._running = True
 
         chunks = await _collect(iorails_stream_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
 
@@ -887,9 +863,9 @@ class TestStreamAsyncToolCalling:
     @pytest.mark.asyncio
     async def test_include_metadata_tool_call_only_yields_structured_event(self, iorails_input_only):
         iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
-        main_engine = iorails_input_only.engine_registry._get_engine("main", ModelEngine)
-        main_engine._client = _build_tool_call_sse_mock(tool_call_chunks=[_NIM_TOOL_CALL_CHUNK])
-        main_engine._running = True
+        main_engine = iorails_input_only.engine_registry.llms["main"].wrapped_model
+        main_engine._client._client = _build_tool_call_sse_mock(tool_call_chunks=[_NIM_TOOL_CALL_CHUNK])
+
         chunks = await _collect(
             iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}], include_metadata=True)
         )
@@ -902,9 +878,8 @@ class TestStreamAsyncToolCalling:
         """When content capture is on, the terminal tool-call payload is recorded on the span."""
         iorails_input_only._content_capture_enabled = True
         iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
-        main_engine = iorails_input_only.engine_registry._get_engine("main", ModelEngine)
-        main_engine._client = _build_tool_call_sse_mock(tool_call_chunks=[_NIM_TOOL_CALL_CHUNK])
-        main_engine._running = True
+        main_engine = iorails_input_only.engine_registry.llms["main"].wrapped_model
+        main_engine._client._client = _build_tool_call_sse_mock(tool_call_chunks=[_NIM_TOOL_CALL_CHUNK])
 
         with patch("nemoguardrails.guardrails.iorails.set_request_content") as mock_set:
             await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
@@ -1111,9 +1086,8 @@ class TestStreamAsyncMetadata:
         """HTTP response headers surface as provider_metadata['response_headers'] in include_metadata stream frames."""
         iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         response_headers = {"nvcf-reqid": "req-xyz", "content-type": "text/event-stream"}
-        main_engine = iorails_input_only.engine_registry._get_engine("main", ModelEngine)
-        main_engine._client = _build_sse_streaming_mock([{"content": "Hi"}], headers=response_headers)
-        main_engine._running = True
+        main_engine = iorails_input_only.engine_registry.llms["main"].wrapped_model
+        main_engine._client._client = _build_sse_streaming_mock([{"content": "Hi"}], headers=response_headers)
 
         chunks = await _collect(
             iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}], include_metadata=True)
@@ -1274,11 +1248,11 @@ class TestStreamAsyncWithRewritingRails:
         iorails_input_only.rails_manager.is_input_safe = AsyncMock(
             return_value=user_message_rewrite(STREAM_MASKED_USER)
         )
-        iorails_input_only.engine_registry.stream_model_call = _capturing_stream
+        iorails_input_only.engine_registry.llms["main"].wrapped_model.stream_async = _model_stream(_capturing_stream)
 
         await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "my ssn is 123-45-6789"}]))
 
-        assert sent_messages[0][-1]["content"] == STREAM_MASKED_USER
+        assert sent_messages[0][-1].content == STREAM_MASKED_USER
 
     @pytest.mark.asyncio
     async def test_an_output_rewrite_replaces_the_batch(self, iorails_stream_check_first):
@@ -1287,7 +1261,7 @@ class TestStreamAsyncWithRewritingRails:
         iorails_stream_check_first.rails_manager.is_output_safe = AsyncMock(
             return_value=bot_message_rewrite("<REDACTED>")
         )
-        iorails_stream_check_first.engine_registry.stream_model_call = _mock_stream
+        iorails_stream_check_first.engine_registry.llms["main"].wrapped_model.stream_async = _model_stream(_mock_stream)
 
         chunks = await _collect(iorails_stream_check_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
         streamed = "".join(str(chunk) for chunk in chunks)
@@ -1303,7 +1277,7 @@ class TestStreamAsyncWithRewritingRails:
         """
         iorails_stream_first.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         iorails_stream_first.rails_manager.is_output_safe = AsyncMock(return_value=bot_message_rewrite("<REDACTED>"))
-        iorails_stream_first.engine_registry.stream_model_call = _mock_stream
+        iorails_stream_first.engine_registry.llms["main"].wrapped_model.stream_async = _model_stream(_mock_stream)
 
         with caplog.at_level(logging.ERROR, logger="nemoguardrails.guardrails.iorails"):
             chunks = await _collect(iorails_stream_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
@@ -1320,7 +1294,7 @@ class TestStreamingContentCapture:
         """Both paths agree on what request content means, which is what the model read."""
         iorails_input_only._content_capture_enabled = True
         iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=user_message_rewrite("my ssn is <SSN>"))
-        iorails_input_only.engine_registry.stream_model_call = _mock_stream
+        iorails_input_only.engine_registry.llms["main"].wrapped_model.stream_async = _model_stream(_mock_stream)
 
         with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
             await _collect(
@@ -1335,7 +1309,7 @@ class TestStreamingContentCapture:
         iorails_input_only._content_capture_enabled = True
         declare_masking_rails(iorails_input_only, RailDirection.INPUT)
         iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=failed_mask("gliner mask pii on input"))
-        iorails_input_only.engine_registry.stream_model_call = _mock_stream
+        iorails_input_only.engine_registry.llms["main"].wrapped_model.stream_async = _model_stream(_mock_stream)
 
         with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
             await _collect(
@@ -1373,7 +1347,7 @@ class TestStreamingContentCapture:
         iorails_input_only._content_capture_enabled = True
         declare_masking_rails(iorails_input_only, RailDirection.INPUT)
         iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=allow_with_mask_pending())
-        iorails_input_only.engine_registry.stream_model_call = _mock_stream
+        iorails_input_only.engine_registry.llms["main"].wrapped_model.stream_async = _model_stream(_mock_stream)
 
         with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
             await _collect(
@@ -1389,7 +1363,7 @@ class TestStreamingContentCapture:
         declare_masking_rails(iorails_stream_check_first, RailDirection.OUTPUT)
         iorails_stream_check_first.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         iorails_stream_check_first.rails_manager.is_output_safe = AsyncMock(return_value=allow_with_mask_pending())
-        iorails_stream_check_first.engine_registry.stream_model_call = _mock_stream
+        iorails_stream_check_first.engine_registry.llms["main"].wrapped_model.stream_async = _model_stream(_mock_stream)
 
         with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
             await _collect(iorails_stream_check_first.stream_async(messages=[{"role": "user", "content": "hi"}]))

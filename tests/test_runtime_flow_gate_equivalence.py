@@ -33,7 +33,6 @@ from nemoguardrails.guardrails.compiled_rail import (
     unservable_reason,
 )
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
-from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.manifests import (
     RailDirection,
     all_rail_manifests,
@@ -3079,24 +3078,24 @@ async def _run_flow_iorails(case: FlowEquivalenceCase) -> "_IORailsRun":
     ):
         iorails = IORails(RailsConfig.from_content(config=config))
         async with iorails:
-            for engine in iorails.engine_registry._engines.values():
-                if isinstance(engine, ModelEngine):
-                    if case.spec.direction == "tool_call":
-                        engine.chat_completion = AsyncMock(
-                            return_value=LLMResponse(
-                                content="",
-                                tool_calls=[
-                                    ToolCall(
-                                        id=PROBE_TOOL_CALL_ID,
-                                        type="function",
-                                        function=ToolCallFunction(name=PROBE_TOOL_NAME, arguments={}),
-                                    )
-                                ],
-                            )
+            for instrumented in iorails.engine_registry.llms.values():
+                engine = instrumented.wrapped_model
+                if case.spec.direction == "tool_call":
+                    engine.generate_async = AsyncMock(
+                        return_value=LLMResponse(
+                            content="",
+                            tool_calls=[
+                                ToolCall(
+                                    id=PROBE_TOOL_CALL_ID,
+                                    type="function",
+                                    function=ToolCallFunction(name=PROBE_TOOL_NAME, arguments={}),
+                                )
+                            ],
                         )
-                    else:
-                        engine.chat_completion = AsyncMock(return_value=LLMResponse(content=NORMAL_OUTPUT))
-            main_engine = iorails.engine_registry._engines["main"]
+                    )
+                else:
+                    engine.generate_async = AsyncMock(return_value=LLMResponse(content=NORMAL_OUTPUT))
+            main_engine = iorails.engine_registry.llms["main"].wrapped_model
             if case.spec.direction == "tool_result":
                 messages = [
                     {"role": "user", "content": USER_INPUT},
@@ -3140,12 +3139,12 @@ class _IORailsRun:
 
 def _user_message_given_to(engine: Any) -> str:
     """The user text the main model read, or the request's own when it was never called."""
-    call = engine.chat_completion.call_args
+    call = engine.generate_async.call_args
     if call is None:
         return USER_INPUT
     messages = call.args[0]
-    user_turns = [message for message in messages if message.get("role") == "user"]
-    return user_turns[-1]["content"] if user_turns else USER_INPUT
+    user_turns = [message for message in messages if message.role.value == "user"]
+    return user_turns[-1].content if user_turns else USER_INPUT
 
 
 def _iorails_decision(run: _IORailsRun) -> FlowDecision:

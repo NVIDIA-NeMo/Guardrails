@@ -666,9 +666,8 @@ def _inline_reasoning_as_think_tags(res: GenerationResponse) -> GenerationRespon
         content = message.get("content")
         if not isinstance(content, str):
             continue
-        # IORails only strips inline tags when the provider gave no structured reasoning
-        # (`response.reasoning or _extract_and_remove_think_tags(...)`), so a provider that
-        # sends both leaves a block already in the content; prepending would duplicate it.
+        # When a provider supplies both structured reasoning and inline tags,
+        # the shared model call preserves the tags already in the content.
         # TODO: this pattern is copied from `_extract_and_remove_think_tags` in
         # nemoguardrails/llm/call.py; factor the two onto one shared matcher.
         if re.search(r"<think>(.*?)</think>", content, re.DOTALL):

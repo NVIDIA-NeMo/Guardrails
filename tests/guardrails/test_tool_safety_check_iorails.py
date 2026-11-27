@@ -22,15 +22,15 @@ defines its own transport-injection helpers since those hardcode the "main" engi
 this rail also needs to mock a second (judge) model engine.
 """
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 import pytest_asyncio
 
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
-from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
 from tests.guardrails.async_helpers import started_iorails
+from tests.guardrails.model_helpers import install_model_http_mock
 from tests.guardrails.test_tool_rails_iorails import _tool_call_payload
 
 RUN_SQL_TOOL = {
@@ -133,28 +133,16 @@ def _judge_payload(text: str) -> dict:
 
 
 def _inject_json_response(iorails: IORails, model_type: str, payload: dict) -> None:
-    """Wire *model_type*'s engine aiohttp client to return *payload* as JSON."""
-    mock_response = AsyncMock()
-    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-    mock_response.status = 200
-    mock_response.json = AsyncMock(return_value=payload)
-    mock_client = AsyncMock()
-    mock_client.post = MagicMock(return_value=mock_response)
-    mock_client.closed = False
-    engine = iorails.engine_registry._get_engine(model_type, ModelEngine)
-    engine._client = mock_client
-    engine._running = True
+    """Replace HTTP transport while retaining canonical response parsing."""
+    install_model_http_mock(iorails.engine_registry, model_type, payload)
 
 
 def _inject_forbidden_transport(iorails: IORails, model_type: str) -> MagicMock:
-    """Wire *model_type*'s engine with a transport whose ``post`` must never be called."""
-    mock_client = AsyncMock()
-    mock_client.post = MagicMock(side_effect=AssertionError(f"{model_type} model must not be called"))
-    mock_client.closed = False
-    engine = iorails.engine_registry._get_engine(model_type, ModelEngine)
-    engine._client = mock_client
-    engine._running = True
-    return mock_client.post
+    """Fail if a blocked request reaches model transport."""
+    client = install_model_http_mock(
+        iorails.engine_registry, model_type, error=AssertionError("provider must not be called")
+    )
+    return client._test_model_calls[iorails.engine_registry.llms[model_type].model_name]
 
 
 @pytest_asyncio.fixture

@@ -15,10 +15,7 @@
 
 """Tests for per-tool regex rails: config schema, RailsManager dispatch, IORails wiring.
 
-The regex-based per-tool check is model-free, so unlike test_tool_rails_e2e.py this
-module needs no HTTP mocking -- a "main" model entry is only required because
-EngineRegistry.parse_tools / extract_tool_exchanges need an engine to parse message
-shape, not because any model call happens.
+The regex-based per-tool check runs locally on the parsed conversation.
 """
 
 import json
@@ -29,9 +26,9 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.iorails import IORails
+from nemoguardrails.guardrails.model_runtime import ModelRuntime
 from nemoguardrails.guardrails.rails_manager import RailsManager
 from nemoguardrails.guardrails.tool_schema import ToolExchange, ToolResult
 from nemoguardrails.llm.taskmanager import LLMTaskManager
@@ -100,7 +97,7 @@ def _build_manager(
     if regex_detection is not None:
         config_dict = {**config_dict, "rails": {"config": {"regex_detection": regex_detection}}}
     config = RailsConfig.from_content(config=config_dict)
-    engine_registry = EngineRegistry(config.models)
+    engine_registry = ModelRuntime(config.models)
     return RailsManager(
         engine_registry=engine_registry,
         task_manager=LLMTaskManager(config),
@@ -484,7 +481,7 @@ class TestAreToolResultsSafe:
             per_tool_result_flows={"run_sql": ["regex check tool result"]},
             regex_detection=RUN_SQL_RESULT_PATTERN_CONFIG,
         )
-        with patch.object(manager.engine_registry, "extract_tool_exchanges", side_effect=RuntimeError("boom")):
+        with patch("nemoguardrails.guardrails.rails_manager.extract_tool_exchanges", side_effect=RuntimeError("boom")):
             result = await manager.are_tool_results_safe(_tool_result_messages("ssn: 123-45-6789"), enabled=False)
         assert result.is_safe
         assert result.records == ()
@@ -658,7 +655,7 @@ def _capture_per_tool_manager():
             },
         }
     )
-    engine_registry = EngineRegistry(config.models)
+    engine_registry = ModelRuntime(config.models)
     manager = RailsManager(
         engine_registry=engine_registry,
         task_manager=LLMTaskManager(config),

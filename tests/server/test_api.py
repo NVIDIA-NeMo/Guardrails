@@ -28,7 +28,7 @@ from fastapi.testclient import TestClient
 from nemoguardrails import Guardrails, RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.exceptions import InvalidModelConfigurationError
-from nemoguardrails.guardrails.model_engine import ModelEngine
+from nemoguardrails.guardrails.model_runtime import ModelRuntime
 from nemoguardrails.llm.models.openai_chat import OpenAIChatModel
 from nemoguardrails.rails import LLMRails
 from nemoguardrails.server import api
@@ -195,7 +195,7 @@ def injected_model_config(monkeypatch):
 
 def test_inject_model_preserves_main_model_api_key_env_var(injected_model_config):
     main_model = injected_model_config.models[0]
-    headers = ModelEngine(main_model)._prepare_request([{"role": "user", "content": "hi"}]).headers
+    headers = ModelRuntime([main_model]).main_model._client._build_headers()
 
     assert main_model.model == "requested-model"
     assert main_model.engine == "custom_llm"
@@ -246,7 +246,7 @@ def test_inject_model_preserves_engine_derived_base_url(monkeypatch):
 
     injected = api._inject_model(_config_with_main_model(), "meta/llama-3.3-70b-instruct")
 
-    assert ModelEngine(injected.models[0]).base_url == "https://integrate.api.nvidia.com"
+    assert ModelRuntime(injected.models).main_model.provider_url == "https://integrate.api.nvidia.com/v1"
 
 
 def test_inject_model_env_engine_overrides_configured_engine(monkeypatch):

@@ -314,14 +314,13 @@ async def test_generation_errors_remain_http_errors_before_sse(client, monkeypat
     assert "data:" not in response.text
 
 
-@pytest.mark.parametrize("wrapper", ["direct", "llm", "engine", "nested"])
+@pytest.mark.parametrize("wrapper", ["direct", "llm", "detailed", "nested"])
 async def test_response_validation_errors_are_bad_gateway(client, monkeypatch, wrapper):
     from nemoguardrails.exceptions import LLMCallException, LLMResponseValidationError
-    from nemoguardrails.guardrails.model_engine import ModelEngineError
 
     error = LLMResponseValidationError("Invalid tool arguments")
-    if wrapper in ("engine", "nested"):
-        error = ModelEngineError("Provider response invalid", model_name="private-model", inner_exception=error)
+    if wrapper in ("detailed", "nested"):
+        error = LLMCallException(error, detail="Provider response invalid for private-model")
     if wrapper in ("llm", "nested"):
         error = LLMCallException(error)
     rails = AsyncMock()
@@ -416,8 +415,6 @@ async def test_sse_formatter_preserves_approved_fields_and_usage():
 async def test_provider_response_is_buffered_and_parsed_before_delivery(
     client, monkeypatch, httpx_mock, iorails, arguments, stream
 ):
-    from aioresponses import CallbackResult, aioresponses
-
     url = "http://upstream.invalid/v1/chat/completions"
     config = RailsConfig.from_content(
         config={
@@ -463,17 +460,9 @@ async def test_provider_response_is_buffered_and_parsed_before_delivery(
         requests.append(json.loads(request.content))
         return httpx.Response(200, json=payload)
 
-    def aiohttp_response(url, **kwargs):
-        requests.append(kwargs["json"])
-        return CallbackResult(payload=payload)
-
     try:
-        with aioresponses() as upstream:
-            if iorails:
-                upstream.post(url, callback=aiohttp_response)
-            else:
-                httpx_mock.add_callback(httpx_response, url=url)
-            response = await client.post("/v1/chat/completions", json={**REQUEST, "stream": stream})
+        httpx_mock.add_callback(httpx_response, url=url)
+        response = await client.post("/v1/chat/completions", json={**REQUEST, "stream": stream})
         assert len(requests) == 1
         assert not requests[0].get("stream", False)
         assert requests[0]["tools"] == TOOLS

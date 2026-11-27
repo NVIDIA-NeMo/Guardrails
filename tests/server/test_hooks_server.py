@@ -29,8 +29,8 @@ from fastapi.testclient import TestClient
 from nemoguardrails import telemetry
 from nemoguardrails.exceptions import LLMCallException, NonStreamingWorkQueueFullError, RailTypeNotConfiguredError
 from nemoguardrails.guardrails.iorails import IORails
-from nemoguardrails.guardrails.model_engine import ModelEngine, ModelEngineError
 from nemoguardrails.http.errors import HTTPConnectionError
+from nemoguardrails.llm.models.openai_chat import OpenAIChatModel
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import RailType
 from nemoguardrails.server.hooks import HookAgent
@@ -260,7 +260,7 @@ def _hooks_server_env(monkeypatch):
 def model_call(monkeypatch):
     """The model transport, which fails the test if a check ever reaches it."""
     call = AsyncMock(side_effect=AssertionError("the hooks server never calls a model"))
-    monkeypatch.setattr(ModelEngine, "call", call)
+    monkeypatch.setattr(OpenAIChatModel, "generate_async", call)
     yield call
     call.assert_not_called()
 
@@ -624,10 +624,10 @@ class TestErrors:
         "exc",
         [
             LLMCallException(MODEL_CALL_FAILURE),
-            ModelEngineError(MODEL_CALL_FAILURE, model_name="llama_guard", status=504),
+            LLMCallException(MODEL_CALL_FAILURE, detail="Model invocation failed", status=504),
             HTTPConnectionError(MODEL_CALL_FAILURE),
         ],
-        ids=["LLMCallException", "ModelEngineError", "HTTPClientError"],
+        ids=["LLMCallException", "detailed-LLMCallException", "HTTPClientError"],
     )
     def test_failed_model_call_is_rail_failed_error(self, failing_check, exc):
         """A rail's model call that fails and propagates out of the check gets `500 rail_failed`."""

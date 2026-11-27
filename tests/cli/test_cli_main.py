@@ -521,14 +521,13 @@ class TestHooksServerCommand:
     )
     @patch("uvicorn.run")
     def test_hooks_server_logs_a_judged_check_without_the_tool_input(
-        self, mock_uvicorn, tmp_path, caplog, verdict, answer, outcome, rail
+        self, mock_uvicorn, tmp_path, caplog, verdict, answer, outcome, rail, httpx_mock
     ):
         """A judged check's arguments reach the judge, and its verdict and timing are logged, but the arguments never are."""
-        from aioresponses import aioresponses
         from fastapi.testclient import TestClient
 
         from nemoguardrails.guardrails.iorails import log as iorails_log
-        from nemoguardrails.guardrails.model_engine import log as model_engine_log
+        from nemoguardrails.llm.clients.base import log as client_log
         from nemoguardrails.server.hooks.app import log as hooks_log
 
         caplog.set_level(logging.INFO, logger=hooks_log.name)
@@ -536,10 +535,10 @@ class TestHooksServerCommand:
         result = runner.invoke(app, ["hooks-server", f"--config={self._config_dir(tmp_path, HOOKS_JUDGE_CONFIG_YML)}"])
         assert result.exit_code == 0, result.output
         (server_app,), _ = mock_uvicorn.call_args
-        with aioresponses() as judge, TestClient(server_app) as client:
-            judge.post(
-                JUDGE_URL,
-                payload={
+        with TestClient(server_app) as client:
+            httpx_mock.add_response(
+                url=JUDGE_URL,
+                json={
                     "id": "chatcmpl-judge",
                     "model": "meta/llama-3.3-70b-instruct",
                     "choices": [{"message": {"role": "assistant", "content": verdict}, "finish_reason": "stop"}],
@@ -560,13 +559,15 @@ class TestHooksServerCommand:
 
         assert response.status_code == 200
         assert response.json() == answer
-        [judge_request] = [call.kwargs["json"] for calls in judge.requests.values() for call in calls]
+        [judge_request] = [
+            json.loads(request.content) for request in httpx_mock.get_requests() if str(request.url) == JUDGE_URL
+        ]
         assert "secret-7f3a" in json.dumps(judge_request)
         assert messages(hooks_log) == [
             "Hook check on /v1/hooks/claude-code: event=PreToolUse tool_name='Bash' "
             f"tool_use_id='privacy-probe' outcome={outcome} code=None rail={rail!r}"
         ]
-        assert any("HTTP POST" in message for message in messages(model_engine_log))
+        assert any("HTTP POST" in message for message in messages(client_log))
         assert any("check completed" in message for message in messages(iorails_log))
         assert "secret-7f3a" not in caplog.text
 

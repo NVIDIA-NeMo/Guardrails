@@ -683,7 +683,7 @@ class TestCheckSync:
             iorails_sync.check([{"role": "user", "content": "hello"}])
 
         mock_iorails.assert_called_once()
-        assert mock_iorails.call_args.kwargs == {"_report_usage": False}
+        assert mock_iorails.call_args.kwargs == {"llm": None, "_report_usage": False}
         passed_config = mock_iorails.call_args.args[0]
         assert passed_config.tracing is None or not passed_config.tracing.enabled
         assert passed_config.metrics is None or not passed_config.metrics.enabled

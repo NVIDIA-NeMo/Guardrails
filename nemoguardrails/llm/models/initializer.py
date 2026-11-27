@@ -15,7 +15,7 @@
 
 """Module for initializing LLM models with proper error handling and type checking."""
 
-from typing import Any, Dict, Literal
+from typing import Any, Callable, Dict, Literal, Optional
 
 from nemoguardrails.llm.frameworks import get_default_framework, get_framework
 from nemoguardrails.types import LLMModel
@@ -30,6 +30,8 @@ def init_llm_model(
     provider_name: str,
     kwargs: Dict[str, Any],
     mode: Literal["chat", "text"] = "chat",
+    *,
+    create_model: Optional[Callable[[str, str, Dict[str, Any]], LLMModel]] = None,
 ) -> LLMModel:
     """Initialize an LLM model with proper error handling.
 
@@ -38,6 +40,7 @@ def init_llm_model(
         provider_name: Name of the provider to use
         kwargs: Additional arguments to pass to the model initialization
         mode: Literal taking either "chat" or "text" values
+        create_model: Optional model constructor bound to a runtime-owned client pool
 
     Returns:
         An initialized LLM model
@@ -47,6 +50,9 @@ def init_llm_model(
     """
     model_kwargs = dict(kwargs) if kwargs else {}
     model_kwargs["mode"] = mode
+
+    if create_model is not None:
+        return create_model(model_name, provider_name, model_kwargs)
 
     framework = get_framework(get_default_framework())
     return framework.create_model(

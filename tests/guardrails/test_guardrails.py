@@ -41,6 +41,7 @@ from nemoguardrails.manifests import default_rail_catalog
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.llmrails import LLMRails
 from nemoguardrails.rails.llm.options import GenerationOptions, RailsResult, RailStatus, RailType
+from nemoguardrails.testing.fake_model import FakeLLMModel
 from nemoguardrails.types import LLMResponse
 from tests.guardrails.async_helpers import JAILBREAK_NIM_URL, mock_jailbreak_nim, mock_rail_model
 from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG, NEMOGUARDS_CONFIG, TOPIC_SAFETY_CONFIG
@@ -120,6 +121,11 @@ def mock_llm():
     """Create a mock LLM for testing."""
     llm = MagicMock()
     return llm
+
+
+@pytest.fixture
+def nonprotocol_llm():
+    return object()
 
 
 @pytest.fixture
@@ -370,14 +376,15 @@ class TestGuardrailsInit:
 
     @patch.object(IORails, "__init__", return_value=None)
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
-    def test_init_with_llm_forces_llmrails(
-        self, mock_llmrails_class, mock_iorails_init, _content_safety_rails_config, mock_llm
+    def test_init_with_supported_llm_uses_iorails(
+        self, mock_llmrails_class, mock_iorails_init, _content_safety_rails_config
     ):
-        """Passing `llm` forces LLMRails even with use_iorails=True and an IORails-compatible config."""
-        mock_llmrails_class.return_value = MagicMock()
-        Guardrails(config=_content_safety_rails_config, llm=mock_llm, use_iorails=True)
-        mock_llmrails_class.assert_called_once_with(_content_safety_rails_config, mock_llm, False)
-        mock_iorails_init.assert_not_called()
+        """A protocol model overrides main without forcing a legacy runtime."""
+        llm = FakeLLMModel(responses=[])
+        rails = Guardrails(config=_content_safety_rails_config, llm=llm, use_iorails=True)
+        assert isinstance(rails.rails_engine, IORails)
+        mock_llmrails_class.assert_not_called()
+        mock_iorails_init.assert_called_once_with(_content_safety_rails_config, llm=llm)
 
     @patch.object(IORails, "__init__", return_value=None)
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
@@ -395,7 +402,7 @@ class TestGuardrailsInit:
         """Omitting `llm` (the default) selects IORails on an IORails-compatible config."""
         guardrails = Guardrails(config=_content_safety_rails_config, use_iorails=True)
         assert isinstance(guardrails.rails_engine, IORails)
-        mock_iorails_init.assert_called_once_with(_content_safety_rails_config)
+        mock_iorails_init.assert_called_once_with(_content_safety_rails_config, llm=None)
 
 
 class TestConstructionLoggingSideEffects:
@@ -451,10 +458,13 @@ class TestIORailsUnsupportedReason:
         """Compatible config and no llm: IORails is usable, reason is None."""
         assert IORails.unsupported_reason(_content_safety_rails_config, llm=None) is None
 
-    def test_llm_provided_returns_llm_reason(self, _content_safety_rails_config, mock_llm):
-        """Passing an llm is reported even when the config is IORails-compatible."""
-        reason = IORails.unsupported_reason(_content_safety_rails_config, llm=mock_llm)
-        assert reason == "an `llm` argument was provided; IORails does not accept a custom LLM"
+    def test_nonprotocol_llm_returns_llm_reason(self, _content_safety_rails_config, nonprotocol_llm):
+        """An incompatible object is rejected even when the configuration is usable."""
+        reason = IORails.unsupported_reason(_content_safety_rails_config, llm=nonprotocol_llm)
+        assert reason == "the supplied `llm` does not implement the LLMModel protocol"
+
+    def test_protocol_llm_is_supported(self, _content_safety_rails_config):
+        assert IORails.unsupported_reason(_content_safety_rails_config, llm=FakeLLMModel(responses=[])) is None
 
     def test_a_compilation_failure_becomes_a_fallback_reason(self, _content_safety_rails_config, monkeypatch):
         """An enabled flow that fails to compile routes to LLMRails rather than escaping."""
@@ -548,15 +558,15 @@ class TestIORailsUnsupportedReason:
     # scope at the current four-name tier, so ``unsupported_reason`` reports them as
     # unsupported before it ever compiles them.
 
-    def test_llm_takes_precedence_over_config_issues(self):
-        """When both llm is provided and the config has unsupported flows, the llm
-        reason is reported first so the user fixes one issue at a time."""
+    def test_nonprotocol_llm_takes_precedence_over_config_issues(self, nonprotocol_llm):
+        """When a nonprotocol llm is provided and the config has unsupported flows,
+        the protocol reason is reported first so the user fixes one issue at a time."""
         config = _make_iorails_config(
             rails={"input": {"flows": [_LLMRAILS_ONLY_INPUT_FLOW]}},
             extra_prompts=[{"task": "self_check_input", "content": "placeholder"}],
         )
-        reason = IORails.unsupported_reason(config, llm=MagicMock())
-        assert reason == "an `llm` argument was provided; IORails does not accept a custom LLM"
+        reason = IORails.unsupported_reason(config, llm=nonprotocol_llm)
+        assert reason == "the supplied `llm` does not implement the LLMModel protocol"
 
     def test_colang_2x_config_is_unsupported(self):
         """A Colang 2.x config is rejected: IORails has no Colang runtime, so 2.x falls back to LLMRails."""
@@ -565,11 +575,11 @@ class TestIORailsUnsupportedReason:
         assert reason == "IORails supports Colang 1.0 only; config uses Colang 2.x"
         assert IORails.can_handle(config, llm=None) is False
 
-    def test_llm_takes_precedence_over_colang_version(self):
-        """When both an llm is provided and the config is Colang 2.x, the llm reason is reported first."""
+    def test_nonprotocol_llm_takes_precedence_over_colang_version(self, nonprotocol_llm):
+        """A nonprotocol llm is reported before the unsupported Colang version."""
         config = RailsConfig.from_content(config={"colang_version": "2.x"})
-        reason = IORails.unsupported_reason(config, llm=MagicMock())
-        assert reason == "an `llm` argument was provided; IORails does not accept a custom LLM"
+        reason = IORails.unsupported_reason(config, llm=nonprotocol_llm)
+        assert reason == "the supplied `llm` does not implement the LLMModel protocol"
 
     def test_can_handle_matches_reason_none(self, _content_safety_rails_config):
         """``can_handle`` is a thin wrapper that returns True iff reason is None."""
@@ -666,12 +676,12 @@ class TestRequireIORails:
         assert isinstance(guardrails.rails_engine, IORails)
         mock_log.warning.assert_not_called()
 
-    def test_with_llm_raises_value_error(self, _content_safety_rails_config, mock_llm):
-        """require_iorails=True + llm provided => ValueError naming the llm reason."""
+    def test_with_nonprotocol_llm_raises_value_error(self, _content_safety_rails_config, nonprotocol_llm):
+        """require_iorails rejects a model that does not implement the protocol."""
         with pytest.raises(ValueError, match="llm"):
             Guardrails(
                 config=_content_safety_rails_config,
-                llm=mock_llm,
+                llm=nonprotocol_llm,
                 use_iorails=True,
                 require_iorails=True,
             )
@@ -687,19 +697,21 @@ class TestRequireIORails:
 
     @patch("nemoguardrails.guardrails.guardrails.log")
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
-    def test_with_llm_no_require_warns(self, mock_llmrails_class, mock_log, _content_safety_rails_config, mock_llm):
-        """require_iorails=False (default) + llm provided => warn and fall back to LLMRails."""
+    def test_with_nonprotocol_llm_no_require_warns(
+        self, mock_llmrails_class, mock_log, _content_safety_rails_config, nonprotocol_llm
+    ):
+        """A nonprotocol llm warns and falls back when require_iorails is false."""
         mock_llmrails_class.return_value = MagicMock()
         Guardrails(
             config=_content_safety_rails_config,
-            llm=mock_llm,
+            llm=nonprotocol_llm,
             use_iorails=True,
             require_iorails=False,
         )
         mock_log.warning.assert_called_once()
         warning_message = mock_log.warning.call_args[0][0]
         assert "llm" in warning_message.lower()
-        mock_llmrails_class.assert_called_once_with(_content_safety_rails_config, mock_llm, False)
+        mock_llmrails_class.assert_called_once_with(_content_safety_rails_config, nonprotocol_llm, False)
 
     @patch("nemoguardrails.guardrails.guardrails.log")
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
@@ -1155,14 +1167,16 @@ class TestGuardrailsAttributes:
         guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
         assert guardrails.config is _nemoguards_rails_config
 
-    @patch.object(IORails, "__init__", return_value=None)
-    def test_llm_property_raises_on_iorails(self, mock_iorails_init, _content_safety_rails_config):
-        """guardrails.llm raises NotImplementedError when running on IORails."""
-        guardrails = Guardrails(config=_content_safety_rails_config, use_iorails=True)
+    def test_llm_property_returns_injected_iorails_model(self, _content_safety_rails_config):
+        """The facade exposes the borrowed main model selected by IORails."""
+        llm = FakeLLMModel(responses=[])
+        guardrails = Guardrails(config=_content_safety_rails_config, llm=llm, require_iorails=True)
         assert isinstance(guardrails.rails_engine, IORails)
+        assert guardrails.llm is llm
 
-        with pytest.raises(NotImplementedError, match="IORails doesn't support llm attribute access"):
-            _ = guardrails.llm
+    def test_llm_property_returns_configured_iorails_model(self, _content_safety_rails_config):
+        guardrails = Guardrails(config=_content_safety_rails_config, require_iorails=True)
+        assert guardrails.llm.model_name == _content_safety_rails_config.models[0].model
 
     @patch.object(IORails, "__init__", return_value=None)
     def test_runtime_property_raises_on_iorails(self, mock_iorails_init, _content_safety_rails_config):
@@ -1787,7 +1801,7 @@ class TestGuardrailsPickle:
         assert guardrails.verbose is False
         # __init__ runs and routes to IORails for this config
         assert isinstance(guardrails.rails_engine, IORails)
-        mock_iorails_init.assert_called_once_with(_nemoguards_rails_config)
+        mock_iorails_init.assert_called_once_with(_nemoguards_rails_config, llm=None)
 
     @patch.object(LLMRails, "__init__", return_value=None)
     def test_setstate_rebuilds_from_in_memory_config_llmrails(self, mock_llmrails_init):
@@ -1852,16 +1866,15 @@ class TestGuardrailsPickle:
         assert mock_iorails_init.call_count == 2
 
     @patch.object(LLMRails, "__init__", return_value=None)
-    def test_pickle_preserves_llmrails_when_llm_was_passed(
-        self, mock_llmrails_init, _content_safety_rails_config, mock_llm
+    def test_pickle_preserves_llmrails_for_nonprotocol_llm(
+        self, mock_llmrails_init, _content_safety_rails_config, nonprotocol_llm
     ):
-        """Regression (CodeRabbit P0): when an explicit LLM is passed, Guardrails uses
-        LLMRails even with use_iorails=True and an IORails-compatible config (the llm
-        argument forces LLMRails). Pickle drops the llm — so __getstate__ must save the
-        *effective* engine choice (not the user kwarg), otherwise __setstate__ would
-        rebuild with llm=None + use_iorails=True and silently switch to IORails."""
-        # Initial wrapper: LLMRails despite use_iorails=True (because llm was passed)
-        guardrails = Guardrails(config=_content_safety_rails_config, llm=mock_llm, use_iorails=True)
+        """A nonprotocol LLM forces fallback; pickle must preserve that effective engine.
+
+        The injected object is omitted from serialized state, so restoring the original
+        preference would otherwise silently switch the runtime.
+        """
+        guardrails = Guardrails(config=_content_safety_rails_config, llm=nonprotocol_llm, use_iorails=True)
         assert isinstance(guardrails.rails_engine, LLMRails)
 
         # __getstate__ saves effective engine (False = LLMRails), not the user kwarg (True)

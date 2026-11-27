@@ -47,7 +47,6 @@ from nemoguardrails.guardrails.compiled_rail import (
     compile_rail,
     unservable_reason,
 )
-from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.guardrails_types import (
     LLMMessage,
     LLMMessages,
@@ -63,6 +62,7 @@ from nemoguardrails.guardrails.guardrails_types import (
     serialize_prompt,
     truncate,
 )
+from nemoguardrails.guardrails.model_runtime import ModelRuntime
 from nemoguardrails.guardrails.rails_manager import RailsManager
 from nemoguardrails.guardrails.telemetry import (
     are_metrics_enabled,
@@ -82,11 +82,12 @@ from nemoguardrails.guardrails.telemetry import (
     traced_request,
 )
 from nemoguardrails.guardrails.tool_parsing import parse_tool_definitions
-from nemoguardrails.llm.call import _extract_and_remove_think_tags
+from nemoguardrails.llm.call import stream_chunk_metadata
 from nemoguardrails.llm.clients._errors import (
     STREAM_ERROR_TYPES,
     build_streaming_error_payload,
 )
+from nemoguardrails.llm.models.resources import resolve_model_resources
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.manifests import RailDirection as SurfaceDirection
@@ -178,26 +179,6 @@ def _serialize_tool_calls(tool_calls: list[ToolCall]) -> list[dict]:
         }
         for tool_call in tool_calls
     ]
-
-
-def _stream_chunk_metadata(chunk: LLMResponseChunk) -> Optional[dict]:
-    """Extract per-chunk streaming metadata (usage + provider_metadata) for the StreamingHandler.
-
-    Mirrors LLMRails' streaming metadata contract so ``include_metadata`` consumers see the same
-    frames from both engines: token usage as a flat ``input/output/total_tokens`` dict and
-    ``provider_metadata`` verbatim. Returns ``None`` when the chunk carries neither, so ordinary
-    text tokens push no metadata and the StreamingHandler emits them as bare ``{"text": ...}``.
-    """
-    metadata: dict = {}
-    if chunk.provider_metadata:
-        metadata["provider_metadata"] = chunk.provider_metadata
-    if chunk.usage:
-        metadata["usage"] = {
-            "input_tokens": chunk.usage.input_tokens,
-            "output_tokens": chunk.usage.output_tokens,
-            "total_tokens": chunk.usage.total_tokens,
-        }
-    return metadata or None
 
 
 def _frame_for_stream(payload: str, include_metadata: Optional[bool]) -> Union[str, dict]:
@@ -366,7 +347,6 @@ def _build_generation_log(
 
 def _build_generation_response(
     response_text: str,
-    reasoning_content: Optional[str],
     response: LLMResponse,
     log: Optional[GenerationLog] = None,
 ) -> GenerationResponse:
@@ -381,8 +361,8 @@ def _build_generation_response(
     log details via ``options.log``.
     """
     result = GenerationResponse(response=[{"role": "assistant", "content": response_text}])
-    if reasoning_content:
-        result.reasoning_content = reasoning_content
+    if response.reasoning:
+        result.reasoning_content = response.reasoning
     if response.tool_calls:
         result.tool_calls = [tool_call.to_dict() for tool_call in response.tool_calls]
     llm_metadata = _build_llm_metadata(response)
@@ -736,28 +716,14 @@ class _GeneratedTurn:
     input_rewrite_pending: bool = False
 
 
-def _compile_only_deps(config: RailsConfig) -> RailDependencies:
-    """Dependencies for the gate's trial compile: declared types and config, no live collaborators.
-
-    Compilation reads ``llms`` for its key names alone — to reject a rail naming a model type
-    the configuration does not declare — and never touches a model, so naming the types is
-    enough. They must be named, though: with an empty mapping the gate would refuse every
-    rail carrying a model binding while ``RailsManager`` accepted it, and a config would be
-    routed to LLMRails for a model it actually has.
-
-    ``config`` is carried for the same reason. The dependency check reads it to tell an
-    in-process backend from a remote one, so withholding it would make the gate refuse a rail
-    over its NIM that ``RailsManager`` then compiles happily.
-
-    ``llm_task_manager`` is required too: some compile-time checks read
-    ``llm_task_manager.output_parsers`` to reject a prompt naming an output parser the config
-    never registers, catching that mistake at load time instead of the first request.
-
-    The key sets match by construction, since ``EngineRegistry`` is built from these same
-    models and registers each one.
-    """
+def _compile_only_deps(config: RailsConfig, llm: Optional[LLMModel] = None) -> RailDependencies:
+    """Trial compile with the same resource selection as live construction."""
+    plan = resolve_model_resources(config.models, main_model=llm)
+    model_keys = {model.type for model in plan.specialized_configs}
+    if plan.main_model is not None or plan.main_config is not None:
+        model_keys.add("main")
     return RailDependencies(
-        llms={model.type: None for model in config.models},
+        llms={key: None for key in model_keys},
         llm_task_manager=LLMTaskManager(config),
         config=config,
     )
@@ -779,8 +745,8 @@ class IORails(BaseGuardrails):
     @classmethod
     def unsupported_reason(cls, config: RailsConfig, llm: Optional[LLMModel] = None) -> Optional[str]:
         """Return None if IORails can handle (config, llm), else a human-readable reason."""
-        if llm is not None:
-            return "an `llm` argument was provided; IORails does not accept a custom LLM"
+        if llm is not None and not isinstance(llm, LLMModel):
+            return "the supplied `llm` does not implement the LLMModel protocol"
 
         if config.colang_version != "1.0":
             return f"IORails supports Colang 1.0 only; config uses Colang {config.colang_version}"
@@ -796,7 +762,7 @@ class IORails(BaseGuardrails):
             (config.rails.input.flows, SurfaceDirection.INPUT),
             (config.rails.output.flows, SurfaceDirection.OUTPUT),
         )
-        deps = _compile_only_deps(config)
+        deps = _compile_only_deps(config, llm)
         for flows, direction in rail_checks:
             reason = cls._unservable_rails_reason(flows, direction, deps)
             if reason is not None:
@@ -875,15 +841,16 @@ class IORails(BaseGuardrails):
             return f"Requested rail type '{rail_type.value}' has no configured rails."
         return None
 
-    def __init__(self, config: RailsConfig, *, _report_usage: bool = True) -> None:
+    def __init__(self, config: RailsConfig, llm: Optional[LLMModel] = None, *, _report_usage: bool = True) -> None:
         """Build the engine registry and rails manager from the given config."""
         self._running = False
         self._owned_components: set[str] = set()
         self._lifecycle_lock = asyncio.Lock()
         self.config = config
+        self._injected_main = llm
 
         # Create the OTEL tracer (if enabled in config).
-        # Pass to EngineRegistry and RailsManager to keep all spans consistent under parent
+        # Pass to shared model instrumentation and RailsManager under the request parent
         self._tracing_enabled = is_tracing_enabled(config.tracing)
         self._tracer = get_tracer() if self._tracing_enabled else None
         self._metrics_enabled = are_metrics_enabled(config.metrics)
@@ -892,8 +859,9 @@ class IORails(BaseGuardrails):
         # The flag itself is resolved from config + env var by the helper.
         self._content_capture_enabled = self._tracing_enabled and is_content_capture_enabled(config.tracing)
 
-        self.engine_registry = EngineRegistry(
+        self.engine_registry = ModelRuntime(
             config.models,
+            main_model=llm,
             tracer=self._tracer,
             metrics_enabled=self._metrics_enabled,
             content_capture_enabled=self._content_capture_enabled,
@@ -1106,7 +1074,7 @@ class IORails(BaseGuardrails):
         async def _run_sync_iorails():
             """Spin up a short-lived IORails engine for one synchronous generate call."""
             # Avoid counting this sync-API bridge as a separate user-created IORails instance.
-            async with IORails(sync_config, _report_usage=False) as iorails_engine:
+            async with IORails(sync_config, llm=self._injected_main, _report_usage=False) as iorails_engine:
                 return await iorails_engine.generate_async(messages=messages, options=options, **kwargs)
 
         return asyncio.run(_run_sync_iorails())
@@ -1283,13 +1251,8 @@ class IORails(BaseGuardrails):
             raise RuntimeError("generation returned no response without naming a blocking rail")
         messages = turn.messages
 
-        # Log raw content before reasoning extraction and think-token removal
-        log.debug("[%s] Raw LLM response: %s", req_id, truncate(response.content))
+        log.debug("[%s] Model response: %s", req_id, truncate(response.content))
 
-        # Reasoning extraction prefers LLMResponse `reasoning` field if the provider
-        # supports it, falling back to extracting <think>...</think> tags otherwise.
-        # The fallback mutates response.content to remove reasoning content.
-        reasoning_content = response.reasoning or _extract_and_remove_think_tags(response)
         response_text = response.content
 
         # Main LLM returns function calls to make based on available tools and conversation
@@ -1331,15 +1294,13 @@ class IORails(BaseGuardrails):
 
         if has_generation_options:
             log_obj = _build_generation_log(records, options, time.monotonic() - t_start)
-            return _build_generation_response(response_text, reasoning_content, response, log_obj)
+            return _build_generation_response(response_text, response, log_obj)
 
-        # Bare return path: reasoning is delivered inline as a <think> prefix
-        # (LLMRails legacy shape). The structured path above instead puts it in the
-        # reasoning_content field and keeps the message content clean.
-        if reasoning_content:
-            response_text = f"<think>{reasoning_content}</think>\n" + response_text
-            # The output masks ran on the answer alone, so the text returned holds reasoning none of them saw.
+        # Preserve the legacy <think> prefix for callers requesting a bare message.
+        if response.reasoning:
+            response_text = f"<think>{response.reasoning}</think>\n" + response_text
             if conversation is not None and self.rails_manager.transform_flows[RailDirection.OUTPUT]:
+                # The prefix was added after output masking, so keep this message off the request span.
                 conversation.withhold(RailDirection.OUTPUT)
 
         return _build_assistant_message(response_text, response.tool_calls)
@@ -1572,7 +1533,7 @@ class IORails(BaseGuardrails):
 
         async def _run_sync_iorails():
             """Spin up a short-lived IORails engine for one synchronous check call."""
-            async with IORails(sync_config, _report_usage=False) as iorails_engine:
+            async with IORails(sync_config, llm=self._injected_main, _report_usage=False) as iorails_engine:
                 return await iorails_engine.check_async(messages, rail_types=rail_types, tools=tools)
 
         return asyncio.run(_run_sync_iorails())
@@ -1780,7 +1741,7 @@ class IORails(BaseGuardrails):
     async def _check_tool_results(self, messages: LLMMessages, req_id: str) -> Optional[RailsResult]:
         """Run the tool-result rails, returning the blocked check result or None to continue."""
         log.info("[%s] Running tool result rails", req_id)
-        result = await self.rails_manager.are_tool_results_safe(messages, model_type=None)
+        result = await self.rails_manager.are_tool_results_safe(messages)
         if result.is_safe:
             return None
         log.info("[%s] Tool results blocked: %s", req_id, display_reason(result))
@@ -1877,7 +1838,7 @@ class IORails(BaseGuardrails):
         # Tool calls assembled by the stream: _generation_task rebinds this (via
         # nonlocal) to the engine's finalized list and _wrapped_iterator reads it
         # after the content stream drains. The engine emits the complete list once
-        # (see ModelEngine.stream_call), so a plain rebind is sufficient.
+        # (see the shared model adapter), so a plain rebind is sufficient.
         accumulated_tool_calls: list[ToolCall] = []
 
         async def _generation_task(request_span):
@@ -1949,26 +1910,27 @@ class IORails(BaseGuardrails):
                 # accumulated and surfaced as a terminal ToolCallChunk after the text
                 # stream ends. Reasoning is dropped for LLMRails compatibility.
                 log.info("[%s] Streaming main LLM", req_id)
-                content_parts: list[str] = []
                 # Usage from the terminal usage-only chunk is folded into the END_OF_STREAM
                 # frame below (not its own frame), matching LLMRails' single terminal frame.
                 pending_usage_metadata: Optional[dict] = None
-                async for chunk in self.engine_registry.stream_model_call("main", messages, **llm_kwargs):
-                    chunk_metadata = _stream_chunk_metadata(chunk)
+
+                async def consume_chunk(chunk: LLMResponseChunk) -> None:
+                    nonlocal pending_usage_metadata
+                    chunk_metadata = stream_chunk_metadata(chunk)
                     if chunk.delta_content:
-                        content_parts.append(chunk.delta_content)
                         await streaming_handler.push_chunk(chunk.delta_content, chunk_metadata)
                     elif chunk.usage is not None:
                         pending_usage_metadata = chunk_metadata
-                    if chunk.delta_tool_calls:
-                        # Engine emits the complete finalized list once (see
-                        # ModelEngine.stream_call), so rebind rather than accumulate.
-                        accumulated_tool_calls = chunk.delta_tool_calls
+
+                response = await self.engine_registry.stream_model_call(
+                    "main", messages, chunk_consumer=consume_chunk, **llm_kwargs
+                )
 
                 # While LLMResponseChunk.delta_reasoning is dropped explicitly,
                 # think-tags embedded in delta_content are not. Give a warning
                 # to reflect this asymmetry (once-per-request).
-                full_content = "".join(content_parts)
+                accumulated_tool_calls = response.tool_calls or []
+                full_content = response.content or ""
                 if "<think>" in full_content or "</think>" in full_content:
                     log.warning(
                         "[%s] Streamed content contains <think> tags; model is leaking "
@@ -1977,7 +1939,7 @@ class IORails(BaseGuardrails):
                         req_id,
                     )
 
-                if accumulated_tool_calls and not content_parts:
+                if accumulated_tool_calls and not full_content:
                     log.info("[%s] Tool-call-only stream: output rails skipped", req_id)
 
                 await streaming_handler.push_chunk(END_OF_STREAM, pending_usage_metadata)  # type: ignore[arg-type]

@@ -33,7 +33,7 @@ from fastapi.testclient import TestClient
 from nemoguardrails import Guardrails, RailsConfig
 from nemoguardrails.guardrails import guardrails as guardrails_module
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
-from nemoguardrails.guardrails.model_engine import ModelEngine
+from nemoguardrails.llm.models.openai_chat import OpenAIChatModel
 from nemoguardrails.rails.llm.llmrails import LLMRails
 from nemoguardrails.rails.llm.options import GenerationResponse
 from nemoguardrails.server import api
@@ -65,6 +65,12 @@ class _StubLLMRails:
     def __init__(self, config, llm=None, verbose=False):
         self.config = config
         self.events_history_cache = {}
+
+    async def start(self):
+        pass
+
+    async def stop(self):
+        pass
 
     async def generate_async(self, messages=None, options=None, state=None, **kwargs):
         return GenerationResponse(
@@ -354,7 +360,7 @@ def tool_rails_alias(monkeypatch):
 def stubbed_main_model(monkeypatch):
     """Stub the main model at its engine, so the IORails rails in front of it run for real."""
     main_model = AsyncMock(return_value=LLMResponse(content="It is sunny."))
-    monkeypatch.setattr(ModelEngine, "chat_completion", main_model)
+    monkeypatch.setattr(OpenAIChatModel, "generate_async", main_model)
     return main_model
 
 

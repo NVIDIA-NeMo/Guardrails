@@ -24,7 +24,7 @@ The `Guardrails` facade selects the optimal engine to use, based on the Guardrai
 
 `LLMRails` is the full-featured, event-driven engine.
 It runs the complete Colang 1.0 and 2.x runtime, including dialog rails, input and output rails, retrieval (RAG and knowledge base) rails, execution rails (custom Python actions), tool rails, and embeddings.
-It is optimized for flexibility and complete conversational guardrailing, and it is the engine behind every capability that depends on the Colang runtime, custom actions, embeddings, or a custom LLM.
+It is optimized for flexibility and complete conversational guardrailing, and it is the engine behind every capability that depends on the Colang runtime, custom actions, or embeddings.
 
 Instantiate it directly:
 
@@ -44,7 +44,8 @@ It includes tool-calling rails.
 It runs most of the built-in guardrail catalog, including the NeMoGuard safety models and community and third-party integrations.
 For each configured flow, it compiles the [rail manifest](/reference/rail-manifests) and calls the rail action directly instead of executing a Colang flow.
 It also adds optional parallel rail execution, admission control through an `AsyncWorkQueue`, OpenTelemetry token metrics, and optional speculative generation.
-It does not run the Colang dialog runtime, retrieval, or custom actions, and it does not accept a custom LLM.
+It does not run the Colang dialog runtime, retrieval, or custom actions.
+It accepts a caller-supplied main model that implements the `LLMModel` protocol, and it constructs configured models through the selected LLM framework.
 It accepts Colang 1.0 configurations only.
 
 `IORails` has a `start()` and `stop()` lifecycle that initializes and releases the engine's model clients and work queue.
@@ -57,7 +58,7 @@ If startup fails or is cancelled, the core attempts to roll back the model clien
 Each rollback attempt has a cooperative five-second timeout and is shielded from enclosing AnyIO cancellation scopes.
 Blocking cleanup, cleanup that suppresses cancellation, and repeated direct task cancellation can prevent rollback from completing.
 The core retains unfinished cleanup so you can call `shutdown()` again, even when `startup()` did not succeed.
-Failed or interrupted shutdown does not mark outstanding model-client or worker cleanup as complete; another shutdown call retries those resources without closing successfully released resources again.
+A later shutdown retries unfinished cleanup when the resource can still be closed. If HTTPX has already marked a model client closed and its transport cleanup failed, shutdown and restart continue to report incomplete cleanup. Recreate the runtime before using it again.
 Stop admitting application requests before shutdown, and do not treat a timeout or a rollback warning as confirmation that all resources were released.
 
 ### Choosing an Engine
@@ -81,10 +82,10 @@ rails = Guardrails(config, require_iorails=True)
 
 `Guardrails(config)` selects `IORails` when all of the following hold:
 
-- No custom `llm` is passed to the constructor.
+- Any supplied `llm` implements `LLMModel`. A raw LangChain model needs an explicit adapter for IORails.
 - The configuration is Colang 1.0.
 - The configuration uses only the `input`, `output`, `config`, `tool_call`, and `tool_result` rail sections.
-- Every configured input and output flow compiles. The rail must be servable on `IORails`, its optional dependencies must be installed, and any model type it names must be declared under `models`.
+- Every configured input and output flow compiles. The rail must be servable on `IORails`, its optional dependencies must be installed, and any model type it names must be available from `models` or the injected main model.
 - Tool flows are in their own direction and are not duplicated. Refer to [Tool Calling](#tool-calling).
 
 Otherwise the facade falls back to `LLMRails` and logs the reason.
@@ -145,7 +146,7 @@ A Colang 2.x configuration is a fallback condition: `Guardrails` routes it to `L
 
 Both engines support the built-in NeMoGuard safety models: content safety, topic control, and jailbreak detection.
 Content safety and topic control select their model with a `$model=` parameter on the flow.
-Both engines reject a flow that names a model type the configuration does not declare.
+Both engines reject a flow that names an unavailable model type. An injected main model supplies the `main` type even without a configured main entry.
 
 The one difference is the local heuristics variant of jailbreak detection.
 `jailbreak detection heuristics` shares a manifest with `jailbreak detection model`.
@@ -306,15 +307,19 @@ For more information, see the [Observability](/observability) documentation.
 | Feature | LLMRails | IORails | Notes |
 |---|:---:|:---:|---|
 | Default framework (OpenAI-compatible) | ✓ | ✓ | |
-| LangChain integration (opt-in) | ✓ | ✗ | Passing a LangChain LLM routes to LLMRails |
-| Custom LLM injection (`llm=` / `update_llm`) | ✓ | ✗ | A custom `llm` forces LLMRails |
+| LangChain integration (opt-in) | ✓ | ✓ | Select the LangChain framework for configured models, or explicitly wrap an injected model |
+| Custom main model (`llm=`) | ✓ | ✓ | IORails requires an `LLMModel`; injected main overrides configured main |
+| Runtime main-model replacement (`update_llm`) | ✓ | ✗ | Construct a new Guardrails instance to replace an IORails main model |
 | Per-model HTTP headers (`parameters.default_headers`) | ✓ | ✓ | Built-in framework. Only IORails coerces non-string values. |
 | Per-model query parameters (`parameters.default_query`) | ✓ | ✓ | Built-in framework. Only IORails rejects nested objects at construction. |
 
-Both engines use the default OpenAI-compatible framework to call models defined in the configuration.
+Both engines construct configured main and specialized models through the selected framework. The default framework calls OpenAI-compatible endpoints. Provider factories registered with that framework are available to both engines. Register them in application startup before constructing `Guardrails`; IORails still ignores `config.py` initialization hooks.
 
-The LangChain integration is opt-in and available on `LLMRails`.
-Passing a custom `llm` to the constructor, including a LangChain model, forces `LLMRails`, because `IORails` resolves its models from the configuration rather than from an injected LLM and does not support `update_llm`.
+To use configured LangChain models, set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` before construction and install `langchain` plus the matching provider package, such as `langchain-openai`. Set the provider's required credentials, such as `OPENAI_API_KEY`. Model `mode` and supported streaming/tool behavior depend on the selected provider adapter.
+
+To inject a main model into IORails, pass an `LLMModel` to `Guardrails(config, llm=model, require_iorails=True)`. For a raw LangChain model, wrap it with `nemoguardrails.integrations.langchain.llm_adapter.LangChainLLMAdapter` first. Passing an unwrapped LangChain model retains the LLMRails fallback, or raises when `require_iorails=True`.
+
+The injected model replaces only `main`; configured specialized models remain active. `rails.llm` returns that main model. Request-time `llm_params` are passed to it, while its own adapter supplies its defaults. IORails does not support `update_llm()`; create a new `Guardrails` instance to replace the model. For an example and ownership details, refer to [Custom Main Models on IORails](/run-guardrailed-inference/using-python-apis/core-classes#custom-main-models-on-iorails).
 
 Through the built-in framework, both engines attach a model's `parameters.default_headers` and `parameters.default_query` to every provider request.
 Each parameter has per-model scope.
@@ -328,10 +333,10 @@ Quote a scalar header value to keep both engines consistent.
 A nested object under `default_query` raises a `ValueError` from the `IORails` constructor, while `LLMRails` sends it as an encoded Python representation.
 
 These behaviors apply to the built-in framework.
-Under the LangChain framework, `LLMRails` forwards both parameters to the underlying LangChain class.
+Under the LangChain framework, both engines forward these parameters to the underlying LangChain class.
 The class decides whether it accepts the parameters and how it applies them.
 For example, `ChatOpenAI` accepts both parameters.
-An injected `llm` replaces the `main` model, so `LLMRails` does not read that entry's parameters.
+An injected `llm` replaces the `main` model, so neither engine applies that entry's parameters to it.
 For configuration examples, refer to [Custom HTTP Headers](/configure-guardrails/yaml-schema/model-configuration#custom-http-headers) and [Model-Level Query Parameters](/configure-guardrails/yaml-schema/model-configuration#model-level-query-parameters).
 
 ### Knowledge Base and Embeddings

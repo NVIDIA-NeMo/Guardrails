@@ -169,8 +169,7 @@ def test_extract_content_with_content_attr():
 @pytest.mark.asyncio
 async def test_llm_call_with_string_prompt():
     mock_llm = AsyncMock()
-    mock_response = MagicMock()
-    mock_response.content = "LLM response"
+    mock_response = AIMessage(content="LLM response")
     mock_llm.ainvoke.return_value = mock_response
 
     wrapped = LangChainLLMAdapter(mock_llm)
@@ -185,8 +184,7 @@ async def test_llm_call_with_string_prompt():
 @pytest.mark.asyncio
 async def test_llm_call_with_message_list():
     mock_llm = AsyncMock()
-    mock_response = MagicMock()
-    mock_response.content = "LLM response"
+    mock_response = AIMessage(content="LLM response")
     mock_llm.ainvoke.return_value = mock_response
 
     wrapped = LangChainLLMAdapter(mock_llm)
@@ -223,8 +221,7 @@ async def test_llm_call_stores_tool_calls():
 async def test_llm_call_with_llm_params():
     mock_llm = MagicMock()
     mock_bound_llm = AsyncMock()
-    mock_response = MagicMock()
-    mock_response.content = "LLM response with params"
+    mock_response = AIMessage(content="LLM response with params")
 
     mock_llm.bind = MagicMock(return_value=mock_bound_llm)
     mock_bound_llm.ainvoke.return_value = mock_response
@@ -241,8 +238,7 @@ async def test_llm_call_with_llm_params():
 @pytest.mark.asyncio
 async def test_llm_call_with_empty_llm_params():
     mock_llm = AsyncMock()
-    mock_response = MagicMock()
-    mock_response.content = "LLM response"
+    mock_response = AIMessage(content="LLM response")
     mock_llm.ainvoke.return_value = mock_response
 
     wrapped = LangChainLLMAdapter(mock_llm)
@@ -255,8 +251,7 @@ async def test_llm_call_with_empty_llm_params():
 @pytest.mark.asyncio
 async def test_llm_call_with_none_llm_params():
     mock_llm = AsyncMock()
-    mock_response = MagicMock()
-    mock_response.content = "LLM response no params"
+    mock_response = AIMessage(content="LLM response no params")
     mock_llm.ainvoke.return_value = mock_response
 
     wrapped = LangChainLLMAdapter(mock_llm)
@@ -270,8 +265,7 @@ async def test_llm_call_with_none_llm_params():
 async def test_llm_call_with_llm_params_temperature_max_tokens():
     mock_llm = MagicMock()
     mock_bound_llm = AsyncMock()
-    mock_response = MagicMock()
-    mock_response.content = "Response with temp and tokens"
+    mock_response = AIMessage(content="Response with temp and tokens")
 
     mock_llm.bind = MagicMock(return_value=mock_bound_llm)
     mock_bound_llm.ainvoke.return_value = mock_response
