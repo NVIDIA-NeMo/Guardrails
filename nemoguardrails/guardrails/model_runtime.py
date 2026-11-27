@@ -43,6 +43,8 @@ log = logging.getLogger(__name__)
 def _canonical_model_config(model: Model) -> Model:
     """Translate the established IORails transport settings on a private copy."""
     params = dict(model.parameters or {})
+    params.pop("stream", None)
+    params.pop("stream_options", None)
     if "timeout_connect" in params:
         value = params.pop("timeout_connect")
         if "connect_timeout" in params and params["connect_timeout"] != value:

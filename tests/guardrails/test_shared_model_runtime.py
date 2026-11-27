@@ -341,6 +341,8 @@ def test_registered_provider_preserves_constructor_parameters(monkeypatch, provi
     parameters = {
         "base_url": "https://custom.test/rpc",
         "api_key": "test-only-key",
+        "stream": True,
+        "stream_options": {"include_usage": False},
         "timeout_connect": 7,
         "connect_timeout": 11,
         "max_attempts": 4,
@@ -371,6 +373,8 @@ def test_custom_framework_preserves_constructor_parameters(monkeypatch):
     parameters = {
         "base_url": "https://custom.test/rpc",
         "api_key": "test-only-key",
+        "stream": True,
+        "stream_options": {"include_usage": False},
         "timeout_connect": 7,
         "temperature": 0.25,
     }
@@ -381,3 +385,56 @@ def test_custom_framework_preserves_constructor_parameters(monkeypatch):
     factory.assert_called_once_with(model="custom-model", provider="openai", **parameters, mode="chat")
     assert runtime.main_model is factory.return_value
     assert config.models[0].parameters == parameters
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("streaming", "request_stream_options"), [(False, None), (True, None), (True, {"include_usage": False})]
+)
+@pytest.mark.parametrize(
+    "configured", [{"stream": True}, {"stream": False}, {"stream_options": {"include_usage": False}}]
+)
+async def test_public_method_owns_configured_streaming_flags(httpx_mock, streaming, request_stream_options, configured):
+    import json
+
+    config = RailsConfig.from_content(
+        config={
+            "models": [
+                {
+                    "type": "main",
+                    "engine": "openai",
+                    "model": "test-model",
+                    "parameters": {"base_url": "https://model.test", "api_key": "test-key", **configured},
+                }
+            ]
+        }
+    )
+    original = dict(config.models[0].parameters)
+    if streaming:
+        frame = {"choices": [{"delta": {"content": "hello"}, "finish_reason": "stop"}]}
+        httpx_mock.add_response(
+            headers={"content-type": "text/event-stream"}, text="data: " + json.dumps(frame) + "\n\ndata: [DONE]\n\n"
+        )
+    else:
+        httpx_mock.add_response(
+            json={"choices": [{"message": {"role": "assistant", "content": "hello"}, "finish_reason": "stop"}]}
+        )
+    rails = Guardrails(config, require_iorails=True)
+    try:
+        messages = [{"role": "user", "content": "Hi"}]
+        if streaming:
+            options = {"llm_params": {"stream_options": request_stream_options}} if request_stream_options else None
+            chunks = [chunk async for chunk in rails.stream_async(messages=messages, options=options)]
+            assert "".join(chunks) == "hello"
+        else:
+            assert (await rails.generate_async(messages=messages))["content"] == "hello"
+        payload = json.loads(httpx_mock.get_request().content)
+        if streaming:
+            assert payload["stream"] is True
+            assert payload["stream_options"] == (request_stream_options or {"include_usage": True})
+        else:
+            assert "stream" not in payload
+            assert "stream_options" not in payload
+        assert config.models[0].parameters == original
+    finally:
+        await rails.shutdown()
