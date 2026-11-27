@@ -388,3 +388,45 @@ def test_high_score_threshold_disables_rails():
     # This will trigger the input rail
     chat >> "Hi! I am Mr. John!"
     chat << "Hi! My name is John as well."
+
+
+def test_ad_hoc_recognizers_preserves_config_on_repeated_calls():
+    """Verify that custom recognizers are not mutated across repeated invocations (Issue #2391)."""
+    from nemoguardrails.library.sensitive_data_detection.actions import (
+        _get_ad_hoc_recognizers,
+    )
+    from nemoguardrails.library.sensitive_data_detection.rail_config import (
+        SensitiveDataDetection,
+    )
+
+    sdd = SensitiveDataDetection(
+        recognizers=[
+            {
+                "name": "Employee ID Recognizer",
+                "supported_language": "en",
+                "supported_entity": "EMPLOYEE_ID",
+                "patterns": [
+                    {
+                        "name": "emp_regex",
+                        "regex": "(?i)EMP-[0-9]{5}",
+                        "score": 0.9,
+                    }
+                ],
+            }
+        ]
+    )
+
+    # First invocation should create recognizers and preserve the underlying pattern dict
+    rec1 = _get_ad_hoc_recognizers(sdd)
+    assert len(rec1) == 1
+    assert isinstance(sdd.recognizers[0]["patterns"][0], dict)
+
+    # Subsequent invocations should succeed cleanly without state corruption or mutation
+    rec2 = _get_ad_hoc_recognizers(sdd)
+    assert len(rec2) == 1
+    assert isinstance(sdd.recognizers[0]["patterns"][0], dict)
+
+    rec3 = _get_ad_hoc_recognizers(sdd)
+    assert len(rec3) == 1
+    assert isinstance(sdd.recognizers[0]["patterns"][0], dict)
+
